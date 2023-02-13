@@ -53,7 +53,7 @@ impl Guild {
         Ok(())
     }
 
-    fn from_row(row: &Row) -> Self {
+    pub fn from_row(row: &Row) -> Self {
         let id = row.get("id");
         let name = row.get("name");
         let icon = row.get("icon");
@@ -148,7 +148,7 @@ impl User {
         Ok(())
     }
 
-    fn from_row(row: &Row) -> Self {
+    pub fn from_row(row: &Row) -> Self {
         let id = row.get("id");
         let username = row.get("username");
         let discriminator = row.get("discriminator");
@@ -227,7 +227,24 @@ impl List {
         Ok(())
     }
 
-    fn from_row(row: &Row) -> Self {
+    pub async fn get_tasks(
+        db_client: &mut Client,
+        id: Uuid,
+    ) -> Result<Vec<Task>, DatabaseError> {
+        let query = "SELECT * FROM tasks WHERE list_id = $1";
+        let mut tasks: Vec<Task> = Vec::new();
+        let result = db_client
+            .query(query, &[&id])
+            .await?;
+        
+        for row in result {
+            tasks.push(Task::from_row(&row))
+        }
+
+        Ok(tasks)
+    }
+
+    pub fn from_row(row: &Row) -> Self {
         let id = row.get("id");
         let title = row.get("title");
         let user_id = row.get("user_id");
@@ -307,7 +324,7 @@ impl Task {
         Ok(())
     }
 
-    fn from_row(row: &Row) -> Self {
+    pub fn from_row(row: &Row) -> Self {
         let id = row.get("id");
         let list_id = row.get("list_id");
         let user_id = row.get("user_id");
@@ -406,7 +423,7 @@ impl Proof {
         Ok(())
     }
 
-    fn from_row(row: &Row) -> Self {
+    pub fn from_row(row: &Row) -> Self {
         let id = row.get("id");
         let content = row.get("content");
         let image = row.get("image");
@@ -524,7 +541,7 @@ impl AccountabilityRequest {
         Ok(())
     }
 
-    fn from_row(row: &Row) -> Self {
+    pub fn from_row(row: &Row) -> Self {
         let requesting_user = row.get("requesting_user");
         let requested_user = row.get("requested_user");
         let task_id = row.get("task_id");

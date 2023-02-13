@@ -2,7 +2,8 @@
 CREATE TABLE IF NOT EXISTS guilds (
     id      BIGINT PRIMARY KEY, -- should accomodate Discord snowflakes
     name    VARCHAR(100) NOT NULL,
-    icon    TEXT
+    icon    TEXT,
+    send_to BIGINT -- the channel which the bot will send messages to
 );
 
 -- minimal reference to a Discord user (which function as Shamebot users)

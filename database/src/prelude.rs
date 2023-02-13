@@ -12,6 +12,7 @@ pub struct Guild {
     pub id:     i64,
     pub name:   String,
     pub icon:   Option<String>,
+    pub send_to: Option<i64>,
 }
 
 impl Guild {
@@ -20,8 +21,9 @@ impl Guild {
         id: i64,
         name: String,
         icon: Option<String>,
+        send_to: Option<i64>,
     ) -> Result<Self, DatabaseError> {
-        let guild = Guild::insert(db_client, id, name, icon)
+        let guild = Guild::insert(db_client, id, name, icon, send_to)
             .await?;
         
         Ok(Guild::from_row(&guild))
@@ -55,11 +57,13 @@ impl Guild {
         let id = row.get("id");
         let name = row.get("name");
         let icon = row.get("icon");
+        let send_to = row.get("send_to");
 
         Guild {
             id,
             name,
             icon,
+            send_to,
         }
     }
 
@@ -68,17 +72,19 @@ impl Guild {
         id: i64,
         name: String,
         icon: Option<String>,
+        send_to: Option<i64>,
     ) -> Result<Row, DatabaseError> {
         let query = "INSERT INTO 
-            guilds (id, name, icon)
-            VALUES ($1, $2, $3)
+            guilds (id, name, icon, send_to)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (id) DO UPDATE
             SET
                 name = EXCLUDED.name,
-                icon = EXCLUDED.icon
+                icon = EXCLUDED.icon,
+                send_tp = EXCLUDED.send_to
             RETURNING *";
         db_client
-            .query_one(query, &[&id, &name, &icon])
+            .query_one(query, &[&id, &name, &icon, &send_to])
             .await
     }
 }

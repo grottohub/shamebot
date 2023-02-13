@@ -15,6 +15,7 @@ Cargo.lock
 # Testing seed data for database
 **/seed.sql
 **/cleanup.sql
+**/delete.sql
 
 # Testing binary
 testing/

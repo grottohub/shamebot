@@ -91,4 +91,19 @@ impl Client {
             .await
             .map_err(DatabaseError::DBQueryError)
     }
+
+    pub async fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, DatabaseError>
+    where
+        T: ?Sized + ToStatement,
+    {
+        let conn = self
+            .pool
+            .connection()
+            .await?;
+        
+        conn
+            .query(query, params)
+            .await
+            .map_err(DatabaseError::DBQueryError)
+    }
 }

@@ -76,4 +76,19 @@ impl Client {
             .await
             .map_err(DatabaseError::DBQueryError)
     }
+
+    pub async fn query_opt<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Option<Row>, DatabaseError>
+    where
+        T: ?Sized + ToStatement,
+    {
+        let conn = self
+            .pool
+            .connection()
+            .await?;
+        
+        conn
+            .query_opt(query, params)
+            .await
+            .map_err(DatabaseError::DBQueryError)
+    }
 }

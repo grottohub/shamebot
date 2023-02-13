@@ -1,0 +1,8 @@
+services:
+  database:
+    image: shamebot/database
+    build:
+      context: database
+      dockerfile: ./docker/Dockerfile
+    ports:
+      - 8001:5432

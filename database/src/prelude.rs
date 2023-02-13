@@ -452,7 +452,7 @@ impl Proof {
     }
 }
 
-#[derive(Debug, Clone, ToSql, FromSql)]
+#[derive(Debug, Clone, ToSql, FromSql, PartialEq)]
 #[postgres(name="accepted")]
 pub enum RequestStatus {
     #[postgres(name="accepted")]

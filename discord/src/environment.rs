@@ -3,7 +3,7 @@ use std::env;
 
 pub struct Env {
     pub discord_token: String,
-    pub discord_guild: String,
+    pub discord_guild: u64,
     pub shamebot_url: String,
 }
 
@@ -14,6 +14,9 @@ impl Env {
             .unwrap_or_default();
         let discord_guild = env::var("SHAMEBOT_DISCORD_GUILD")
             .map_err(|_| warn!("environment variable SHAMEBOT_DISCORD_GUILD not set"))
+            .unwrap_or_default()
+            .parse::<u64>()
+            .map_err(|e| warn!("error parsing SHAMEBOT_DISCORD_GUILD as u64: {:?}", e))
             .unwrap_or_default();
         let shamebot_url = env::var("SHAMEBOT_URL")
             .map_err(|_| warn!("environment variable SHAMEBOT_URL not set"))

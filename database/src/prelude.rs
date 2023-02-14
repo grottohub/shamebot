@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use mobc::{Connection, Pool};
 use mobc_postgres::{PgConnectionManager, tokio_postgres};
 use mobc_postgres::tokio_postgres::{Error as PgError, NoTls, Row};
@@ -17,7 +19,7 @@ pub struct Guild {
 
 impl Guild {
     pub async fn new(
-        db_client: &mut Client,
+        db_client: &Client,
         id: i64,
         name: String,
         icon: Option<String>,
@@ -26,11 +28,11 @@ impl Guild {
         let guild = Guild::insert(db_client, id, name, icon, send_to)
             .await?;
         
-        Ok(Guild::from_row(&guild))
+        Ok(guild.into())
     }
 
     pub async fn get(
-        db_client: &mut Client,
+        db_client: &Client,
         id: i64,
     ) -> Result<Self, DatabaseError> {
         let query = "SELECT * FROM guilds WHERE id = $1";
@@ -38,11 +40,11 @@ impl Guild {
             .query_one(query, &[&id])
             .await?;
         
-        Ok(Guild::from_row(&guild))
+        Ok(guild.into())
     }
 
     pub async fn delete(
-        db_client: &mut Client,
+        db_client: &Client,
         id: i64,
     ) -> Result<(), DatabaseError> {
         let query = "DELETE FROM guilds WHERE id = $1";
@@ -53,22 +55,8 @@ impl Guild {
         Ok(())
     }
 
-    pub fn from_row(row: &Row) -> Self {
-        let id = row.get("id");
-        let name = row.get("name");
-        let icon = row.get("icon");
-        let send_to = row.get("send_to");
-
-        Guild {
-            id,
-            name,
-            icon,
-            send_to,
-        }
-    }
-
     async fn insert(
-        db_client: &mut Client,
+        db_client: &Client,
         id: i64,
         name: String,
         icon: Option<String>,
@@ -89,6 +77,22 @@ impl Guild {
     }
 }
 
+impl From<Row> for Guild {
+    fn from(row: Row) -> Self {
+        let id = row.get("id");
+        let name = row.get("name");
+        let icon = row.get("icon");
+        let send_to = row.get("send_to");
+
+        Guild {
+            id,
+            name,
+            icon,
+            send_to,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct User {
     pub id:             i64,
@@ -99,7 +103,7 @@ pub struct User {
 
 impl User {
     pub async fn new(
-        db_client: &mut Client,
+        db_client: &Client,
         id: i64,
         username: String,
         discriminator: String,
@@ -108,12 +112,12 @@ impl User {
         let user = User::insert(db_client, id, username, discriminator, avatar_hash)
             .await?;
         
-        Ok(User::from_row(&user))
+        Ok(user.into())
     }
 
     pub async fn associate(
         &self,
-        db_client: &mut Client,
+        db_client: &Client,
         guild: Guild
     ) -> Result<(), DatabaseError> {
         let query = "INSERT INTO user_guild (user_id, guild_id) VALUES ($1, $2)";
@@ -125,7 +129,7 @@ impl User {
     }
 
     pub async fn get(
-        db_client: &mut Client,
+        db_client: &Client,
         id: i64,
     ) -> Result<Self, DatabaseError> {
         let query = "SELECT * FROM users WHERE id = $1";
@@ -133,11 +137,11 @@ impl User {
             .query_one(query, &[&id])
             .await?;
         
-        Ok(User::from_row(&user))
+        Ok(user.into())
     }
 
     pub async fn delete(
-        db_client: &mut Client,
+        db_client: &Client,
         id: i64,
     ) -> Result<(), DatabaseError> {
         let query = "DELETE FROM users WHERE id = $1";
@@ -148,22 +152,8 @@ impl User {
         Ok(())
     }
 
-    pub fn from_row(row: &Row) -> Self {
-        let id = row.get("id");
-        let username = row.get("username");
-        let discriminator = row.get("discriminator");
-        let avatar_hash = row.get("avatar_hash");
-
-        User {
-            id,
-            username,
-            discriminator,
-            avatar_hash,
-        }
-    }
-
     async fn insert(
-        db_client: &mut Client,
+        db_client: &Client,
         id: i64,
         username: String,
         discriminator: String,
@@ -184,6 +174,22 @@ impl User {
     }
 }
 
+impl From<Row> for User {
+    fn from(row: Row) -> Self {
+        let id = row.get("id");
+        let username = row.get("username");
+        let discriminator = row.get("discriminator");
+        let avatar_hash = row.get("avatar_hash");
+
+        User {
+            id,
+            username,
+            discriminator,
+            avatar_hash,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct List {
     pub id:         Uuid,
@@ -193,18 +199,18 @@ pub struct List {
 
 impl List {
     pub async fn new(
-        db_client: &mut Client,
+        db_client: &Client,
         title: String,
         user_id: i64,
     ) -> Result<Self, DatabaseError> {
         let list = List::insert(db_client, title, user_id)
             .await?;
         
-        Ok(List::from_row(&list))
+        Ok(list.into())
     }
 
     pub async fn get(
-        db_client: &mut Client,
+        db_client: &Client,
         id: Uuid,
     ) -> Result<Self, DatabaseError> {
         let query = "SELECT * FROM lists WHERE id = $1";
@@ -212,11 +218,11 @@ impl List {
             .query_one(query, &[&id])
             .await?;
         
-        Ok(List::from_row(&list))
+        Ok(list.into())
     }
 
     pub async fn delete(
-        db_client: &mut Client,
+        db_client: &Client,
         id: Uuid,
     ) -> Result<(), DatabaseError> {
         let query = "DELETE FROM lists WHERE id = $1";
@@ -228,7 +234,7 @@ impl List {
     }
 
     pub async fn get_tasks(
-        db_client: &mut Client,
+        db_client: &Client,
         id: Uuid,
     ) -> Result<Vec<Task>, DatabaseError> {
         let query = "SELECT * FROM tasks WHERE list_id = $1";
@@ -238,26 +244,14 @@ impl List {
             .await?;
         
         for row in result {
-            tasks.push(Task::from_row(&row))
+            tasks.push(row.into())
         }
 
         Ok(tasks)
     }
 
-    pub fn from_row(row: &Row) -> Self {
-        let id = row.get("id");
-        let title = row.get("title");
-        let user_id = row.get("user_id");
-
-        List {
-            id,
-            title,
-            user_id,
-        }
-    }
-
     async fn insert(
-        db_client: &mut Client,
+        db_client: &Client,
         title: String,
         user_id: i64,
     ) -> Result<Row, DatabaseError> {
@@ -271,22 +265,71 @@ impl List {
     }
 }
 
+impl From<Row> for List {
+    fn from(row: Row) -> Self {
+        let id = row.get("id");
+        let title = row.get("title");
+        let user_id = row.get("user_id");
+
+        List {
+            id,
+            title,
+            user_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum JobType {
+    Pester,
+    Overdue,
+    Reminder,
+    Unknown,
+}
+
+impl JobType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Pester => "pester",
+            Self::Overdue => "overdue",
+            Self::Reminder => "reminder",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+impl From<&str> for JobType {
+    fn from(value: &str) -> Self {
+        match value {
+            "pester" => Self::Pester,
+            "overdue" => Self::Overdue,
+            "reminder" => Self::Reminder,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+pub type TaskJobs = HashMap<JobType, Option<Uuid>>;
+
 #[derive(Debug, Clone)]
 pub struct Task {
-    pub id:         Uuid,
-    pub list_id:    Uuid,
-    pub user_id:    i64,
-    pub title:      String,
-    pub content:    Option<String>,
-    pub checked:    bool,
-    pub pester:     Option<i16>,
-    pub due_at:     Option<i64>,
-    pub proof_id:   Option<Uuid>,
+    pub id:             Uuid,
+    pub list_id:        Uuid,
+    pub user_id:        i64,
+    pub title:          String,
+    pub content:        Option<String>,
+    pub checked:        bool,
+    pub pester:         Option<i16>,
+    pub due_at:         Option<i64>,
+    pub proof_id:       Option<Uuid>,
+    pub pester_job:     Option<Uuid>,
+    pub overdue_job:    Option<Uuid>,
+    pub reminder_job:   Option<Uuid>,
 }
 
 impl Task {
     pub async fn new(
-        db_client: &mut Client,
+        db_client: &Client,
         list_id: Uuid,
         user_id: i64,
         title: String,
@@ -297,11 +340,11 @@ impl Task {
         let task = Task::insert(db_client, list_id, user_id, title, content, pester, due_at)
             .await?;
 
-        Ok(Task::from_row(&task))
+        Ok(task.into())
     }
 
     pub async fn get(
-        db_client: &mut Client,
+        db_client: &Client,
         id: Uuid,
     ) -> Result<Self, DatabaseError> {
         let query = "SELECT * FROM tasks WHERE id = $1";
@@ -309,11 +352,11 @@ impl Task {
             .query_one(query, &[&id])
             .await?;
         
-        Ok(Task::from_row(&task))
+        Ok(task.into())
     }
 
     pub async fn delete(
-        db_client: &mut Client,
+        db_client: &Client,
         id: Uuid,
     ) -> Result<(), DatabaseError> {
         let query = "DELETE FROM tasks WHERE id = $1";
@@ -324,32 +367,93 @@ impl Task {
         Ok(())
     }
 
-    pub fn from_row(row: &Row) -> Self {
-        let id = row.get("id");
-        let list_id = row.get("list_id");
-        let user_id = row.get("user_id");
-        let title = row.get("title");
-        let content = row.get("content");
-        let checked = row.get("checked");
-        let pester = row.get("pester");
-        let due_at = row.get("due_at");
-        let proof_id = row.get("proof_id");
+    pub async fn attach_job(
+        db_client: &Client,
+        task_id: Uuid,
+        job_id: Uuid,
+        job_type: JobType,
+    ) -> Result<(), DatabaseError> {
+        let query = format!("UPDATE tasks SET {}_job = $1 WHERE id = $2", job_type.as_str());
+        db_client
+            .query_opt(query.as_str(), &[&job_id, &task_id])
+            .await?;
 
-        Task {
-            id,
-            list_id,
-            user_id,
-            title,
-            content,
-            checked,
-            pester,
-            due_at,
-            proof_id,
+        Ok(())
+    }
+
+    pub async fn remove_job(
+        db_client: &Client,
+        task_id: Uuid,
+        job_id: Uuid,
+        job_type: JobType,
+    ) -> Result<(), DatabaseError> {
+        let query = format!("UPDATE tasks SET {}_job = NULL WHERE id = $1", job_type.as_str());
+        db_client
+            .query_opt(query.as_str(), &[&task_id])
+            .await?;
+        
+        let remove_job_query = "DELETE FROM job WHERE id = $1";
+        db_client
+            .query_opt(remove_job_query, &[&job_id])
+            .await?;
+        
+        Ok(())
+    }
+
+    pub async fn collect_jobs(
+        db_client: &Client,
+        task_id: Uuid,
+    ) -> Result<TaskJobs, DatabaseError> {
+        let mut result: HashMap<JobType, Option<Uuid>> = HashMap::new();
+        let query = "SELECT pester_job, reminder_job, overdue_job FROM tasks WHERE id = $1";
+        let row = db_client
+            .query_one(query, &[&task_id])
+            .await?;
+        
+        let pester_job: Option<Uuid> = row.get("pester_job");
+        let reminder_job: Option<Uuid> = row.get("reminder_job");
+        let overdue_job: Option<Uuid> = row.get("overdue_job");
+
+        result.insert(JobType::Pester, pester_job);
+        result.insert(JobType::Reminder, reminder_job);
+        result.insert(JobType::Overdue, overdue_job);
+
+        Ok(result)
+    }
+
+    pub async fn collect_all_jobs(
+        db_client: &Client,
+    ) -> Result<HashMap<Uuid, TaskJobs>, DatabaseError> {
+        let mut result: HashMap<Uuid, TaskJobs> = HashMap::new();
+        let query = "SELECT 
+            id, pester_job, reminder_job, overdue_job 
+            FROM tasks
+            WHERE pester_job IS NOT NULL OR
+                  reminder_job IS NOT NULL OR
+                  overdue_job IS NOT NULL";
+        let rows = db_client
+            .query(query, &[])
+            .await?;
+        
+        for row in rows {
+            let pester_job: Option<Uuid> = row.get("pester_job");
+            let reminder_job: Option<Uuid> = row.get("reminder_job");
+            let overdue_job: Option<Uuid> = row.get("overdue_job");
+
+            let jobs = HashMap::from([
+                (JobType::Pester, pester_job),
+                (JobType::Reminder, reminder_job),
+                (JobType::Overdue, overdue_job),
+            ]);
+
+            result.insert(row.get("id"), jobs);
         }
+
+        Ok(result)
     }
 
     async fn insert(
-        db_client: &mut Client,
+        db_client: &Client,
         list_id: Uuid,
         user_id: i64,
         title: String,
@@ -367,6 +471,38 @@ impl Task {
     }
 }
 
+impl From<Row> for Task {
+    fn from(row: Row) -> Self {
+        let id = row.get("id");
+        let list_id = row.get("list_id");
+        let user_id = row.get("user_id");
+        let title = row.get("title");
+        let content = row.get("content");
+        let checked = row.get("checked");
+        let pester = row.get("pester");
+        let due_at = row.get("due_at");
+        let proof_id = row.get("proof_id");
+        let pester_job = row.get("pester_job");
+        let overdue_job = row.get("overdue_job");
+        let reminder_job = row.get("reminder_job");
+
+        Task {
+            id,
+            list_id,
+            user_id,
+            title,
+            content,
+            checked,
+            pester,
+            due_at,
+            proof_id,
+            pester_job,
+            overdue_job,
+            reminder_job,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Proof {
     pub id:         Uuid,
@@ -377,18 +513,18 @@ pub struct Proof {
 
 impl Proof {
     pub async fn new(
-        db_client: &mut Client,
+        db_client: &Client,
         content: Option<String>,
         image: Option<String>,
     ) -> Result<Self, DatabaseError> {
         let proof = Proof::insert(db_client, content, image)
             .await?;
         
-        Ok(Proof::from_row(&proof))
+        Ok(proof.into())
     }
 
     pub async fn get(
-        db_client: &mut Client,
+        db_client: &Client,
         id: Uuid,
     ) -> Result<Self, DatabaseError> {
         let query = "SELECT * FROM proof WHERE id = $1";
@@ -396,11 +532,11 @@ impl Proof {
             .query_one(query, &[&id])
             .await?;
         
-        Ok(Proof::from_row(&proof))
+        Ok(proof.into())
     }
 
     pub async fn approve(
-        db_client: &mut Client,
+        db_client: &Client,
         id: Uuid,
     ) -> Result<(), DatabaseError> {
         let query = "UPDATE proof SET approved = true WHERE id = $1";
@@ -412,7 +548,7 @@ impl Proof {
     }
 
     pub async fn delete(
-        db_client: &mut Client,
+        db_client: &Client,
         id: Uuid,
     ) -> Result<(), DatabaseError> {
         let query = "DELETE FROM proof WHERE id = $1";
@@ -423,7 +559,23 @@ impl Proof {
         Ok(())
     }
 
-    pub fn from_row(row: &Row) -> Self {
+    async fn insert(
+        db_client: &Client,
+        content: Option<String>,
+        image: Option<String>,
+    ) -> Result<Row, DatabaseError> {
+        let query = "INSERT INTO 
+            proof (content, image)
+            VALUES ($1, $2)
+            RETURNING *";
+        db_client
+            .query_one(query, &[&content, &image])
+            .await
+    }
+}
+
+impl From<Row> for Proof {
+    fn from(row: Row) -> Self {
         let id = row.get("id");
         let content = row.get("content");
         let image = row.get("image");
@@ -435,20 +587,6 @@ impl Proof {
             image,
             approved,
         }
-    }
-
-    async fn insert(
-        db_client: &mut Client,
-        content: Option<String>,
-        image: Option<String>,
-    ) -> Result<Row, DatabaseError> {
-        let query = "INSERT INTO 
-            proof (content, image)
-            VALUES ($1, $2)
-            RETURNING *";
-        db_client
-            .query_one(query, &[&content, &image])
-            .await
     }
 }
 
@@ -463,26 +601,6 @@ pub enum RequestStatus {
     Rejected,
 }
 
-// impl RequestStatus {
-//     pub fn from_str(status: &str) -> Self {
-//         match status {
-//             "accepted" => Self::Accepted,
-//             "pending" => Self::Pending,
-//             "rejected" => Self::Rejected,
-//             _ => Self::Unknown,
-//         }
-//     }
-
-//     pub fn to_str(&self) -> &str {
-//         match self {
-//             Self::Accepted => "accepted",
-//             Self::Pending => "pending",
-//             Self::Rejected => "rejected",
-//             Self::Unknown => "unknown",
-//         }
-//     }
-// }
-
 #[derive(Debug, Clone)]
 pub struct AccountabilityRequest {
     pub requesting_user:    i64,
@@ -493,7 +611,7 @@ pub struct AccountabilityRequest {
 
 impl AccountabilityRequest {
     pub async fn new(
-        db_client: &mut Client,
+        db_client: &Client,
         requesting_user: i64,
         requested_user: i64,
         task_id: Uuid,
@@ -501,23 +619,27 @@ impl AccountabilityRequest {
         let result = AccountabilityRequest::insert(db_client, requesting_user, requested_user, task_id)
             .await?;
         
-        Ok(AccountabilityRequest::from_row(&result))
+        Ok(result.into())
     }
 
     pub async fn get(
-        db_client: &mut Client,
+        db_client: &Client,
         task_id: Uuid,
-    ) -> Result<Self, DatabaseError> {
+    ) -> Result<Option<Self>, DatabaseError> {
         let query = "SELECT * FROM accountability_requests WHERE task_id = $1";
         let result = db_client
-            .query_one(query, &[&task_id])
+            .query_opt(query, &[&task_id])
             .await?;
         
-        Ok(AccountabilityRequest::from_row(&result))
+        if let Some(result) = result {
+            Ok(Some(result.into()))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn update_status(
-        db_client: &mut Client,
+        db_client: &Client,
         task_id: Uuid,
         status: RequestStatus,
     ) -> Result<(), DatabaseError> {
@@ -530,7 +652,7 @@ impl AccountabilityRequest {
     }
 
     pub async fn delete(
-        db_client: &mut Client,
+        db_client: &Client,
         task_id: Uuid,
     ) -> Result<(), DatabaseError> {
         let query = "DELETE FROM accountability_requests WHERE task_id = $1";
@@ -541,22 +663,8 @@ impl AccountabilityRequest {
         Ok(())
     }
 
-    pub fn from_row(row: &Row) -> Self {
-        let requesting_user = row.get("requesting_user");
-        let requested_user = row.get("requested_user");
-        let task_id = row.get("task_id");
-        let status = row.get("status");
-
-        AccountabilityRequest {
-            requesting_user,
-            requested_user,
-            task_id,
-            status,
-        }
-    }
-
     async fn insert(
-        db_client: &mut Client,
+        db_client: &Client,
         requesting_user: i64,
         requested_user: i64,
         task_id: Uuid,
@@ -568,6 +676,22 @@ impl AccountabilityRequest {
         db_client
             .query_one(query, &[&requesting_user, &requested_user, &task_id])
             .await
+    }
+}
+
+impl From<Row> for AccountabilityRequest {
+    fn from(row: Row) -> Self {
+        let requesting_user = row.get("requesting_user");
+        let requested_user = row.get("requested_user");
+        let task_id = row.get("task_id");
+        let status = row.get("status");
+
+        AccountabilityRequest {
+            requesting_user,
+            requested_user,
+            task_id,
+            status,
+        }
     }
 }
 

@@ -62,7 +62,7 @@ impl Client {
         }
     }
 
-    pub async fn query_one<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, DatabaseError>
+    pub async fn query_one<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Row, DatabaseError>
     where
         T: ?Sized + ToStatement,
     {
@@ -77,7 +77,7 @@ impl Client {
             .map_err(DatabaseError::DBQueryError)
     }
 
-    pub async fn query_opt<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Option<Row>, DatabaseError>
+    pub async fn query_opt<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Option<Row>, DatabaseError>
     where
         T: ?Sized + ToStatement,
     {
@@ -92,7 +92,7 @@ impl Client {
             .map_err(DatabaseError::DBQueryError)
     }
 
-    pub async fn query<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, DatabaseError>
+    pub async fn query<T>(&self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<Vec<Row>, DatabaseError>
     where
         T: ?Sized + ToStatement,
     {

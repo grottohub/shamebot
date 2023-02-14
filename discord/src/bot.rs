@@ -1,4 +1,4 @@
-// the bot will not always be listening, but are the only way to
+// the bot will not always be listening, but is the only way to
 // hit Discord's API
 use database::prelude::{AccountabilityRequest, Client as DbClient, Task, Guild, List, RequestStatus};
 use log::{info, error};
@@ -49,18 +49,18 @@ impl Bot {
         }
     }
 
-    pub async fn get_guild_members(&self, guild_id: u64) -> Vec<Member> {
+    pub async fn get_guild_members(&self) -> Vec<Member> {
         let http = self.client.cache_and_http.http.as_ref();
-        GuildId(guild_id)
+        GuildId(self.env.discord_guild)
             .members(http, None, None)
             .await
             .map_err(|e| error!("{:?}", e))
             .unwrap_or_else(|_| Vec::new())
     }
 
-    pub async fn get_text_channels(&self, guild_id: u64) -> Vec<ChannelId> {
+    pub async fn get_text_channels(&self) -> Vec<ChannelId> {
         let http = self.client.cache_and_http.http.as_ref();
-        let all_channels = GuildId(guild_id)
+        let all_channels = GuildId(self.env.discord_guild)
             .channels(http)
             .await
             .map_err(|e| error!("{:?}", e))
@@ -113,20 +113,18 @@ impl Bot {
         }
     }
 
-    pub async fn send_accountability_request(&mut self, request: AccountabilityRequest) {
+    pub async fn send_accountability_request(&self, request: AccountabilityRequest) {
         let http = self.client.cache_and_http.http.as_ref();
         let channel = self
             .create_dm(request.requested_user as u64)
             .await;
         
-        let task = Task::get(
-            &mut self.db_client,
-            request.task_id,
-        ).await
-        .map_err(|e| error!("{:?}", e))
-        .ok();
+        let task = Task::get(&self.db_client, request.task_id)
+            .await
+            .map_err(|e| error!("{:?}", e))
+            .ok();
         
-        if let (Some(channel), Some(task)) = (channel, task) {
+        if let (Some(task), Some(channel)) = (task, channel) {
             channel.send_message(http, |m| {
                 m.embed(|emb| {
                     emb
@@ -148,18 +146,13 @@ impl Bot {
         }
     }
 
-    pub async fn send_task(&mut self, task_id: Uuid) {
-        let task = Task::get(&mut self.db_client, task_id)
+    pub async fn send_task(&self, task_id: Uuid) {
+        let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
-        let guild_id = self.env.discord_guild
-            .parse::<i64>()
-            .map_err(|e| error!("{:?}", e))
-            .unwrap_or_default();
-        
-        let guild = Guild::get(&mut self.db_client, guild_id)
+      
+        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
@@ -193,22 +186,17 @@ impl Bot {
     }
 
     pub async fn send_list(&mut self, list_id: Uuid) {
-        let list = List::get(&mut self.db_client, list_id)
+        let list = List::get(&self.db_client, list_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
         
-        let tasks = List::get_tasks(&mut self.db_client, list_id)
+        let tasks = List::get_tasks(&self.db_client, list_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
 
-        let guild_id = self.env.discord_guild
-            .parse::<i64>()
-            .map_err(|e| error!("{:?}", e))
-            .unwrap_or_default();
-        
-        let guild = Guild::get(&mut self.db_client, guild_id)
+        let guild = Guild::get(&mut self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
@@ -249,23 +237,20 @@ impl Bot {
         }
     }
 
-    pub async fn send_reminder(&mut self, task_id: Uuid) {
-        let task = Task::get(&mut self.db_client, task_id)
+    pub async fn send_reminder(&self, task_id: Uuid) {
+        let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
-        let guild_id = self.env.discord_guild
-            .parse::<i64>()
-            .map_err(|e| error!("{:?}", e))
-            .unwrap_or_default();
-        
-        let guild = Guild::get(&mut self.db_client, guild_id)
+
+        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
         
         if let (Some(task), Some(guild)) = (task, guild) {
+            if task.checked { return }
+
             let channel_id = guild.send_to.unwrap_or_default();
             ChannelId(channel_id as u64)
                 .send_message(self.client.cache_and_http.http.as_ref(), |m| {
@@ -280,28 +265,24 @@ impl Bot {
         }
     }
 
-    pub async fn send_overdue_notice(&mut self, task_id: Uuid) {
-        let task = Task::get(&mut self.db_client, task_id)
+    pub async fn send_overdue_notice(&self, task_id: Uuid) {
+        let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
         
-        let request = AccountabilityRequest::get(&mut self.db_client, task_id)
+        let request = AccountabilityRequest::get(&self.db_client, task_id)
             .await
-            .map_err(|e| error!("{:?}", e))
-            .ok();
+            .map_err(|e| error!("{:?}", e));
         
-        let guild_id = self.env.discord_guild
-            .parse::<i64>()
-            .map_err(|e| error!("{:?}", e))
-            .unwrap_or_default();
-        
-        let guild = Guild::get(&mut self.db_client, guild_id)
+        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
 
         if let (Some(task), Some(guild)) = (task, guild) {
+            if task.checked { return }
+
             let channel_id = guild.send_to.unwrap_or_default();
             ChannelId(channel_id as u64)
                 .send_message(self.client.cache_and_http.http.as_ref(), |m| {
@@ -311,7 +292,7 @@ impl Bot {
                         task.user_id,
                     );
 
-                    if let Some(request) = request {
+                    if let Ok(Some(request)) = request {
                         message = format!(
                             "{}\n\n<@{:?}>, how could you let this happen?",
                             message,
@@ -327,28 +308,24 @@ impl Bot {
         }
     }
 
-    pub async fn send_pester_message(&mut self, task_id: Uuid) {
-        let task = Task::get(&mut self.db_client, task_id)
+    pub async fn send_pester_message(&self, task_id: Uuid) {
+        let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
         
-        let request = AccountabilityRequest::get(&mut self.db_client, task_id)
+        let request = AccountabilityRequest::get(&self.db_client, task_id)
+            .await
+            .map_err(|e| error!("{:?}", e));
+
+        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
-        let guild_id = self.env.discord_guild
-            .parse::<i64>()
-            .map_err(|e| error!("{:?}", e))
-            .unwrap_or_default();
-        
-        let guild = Guild::get(&mut self.db_client, guild_id)
-            .await
-            .map_err(|e| error!("{:?}", e))
-            .ok();
-        
+
         if let (Some(task), Some(guild)) = (task, guild) {
+            if task.checked { return }
+
             let channel_id = guild.send_to.unwrap_or_default();
             ChannelId(channel_id as u64)
                 .send_message(self.client.cache_and_http.http.as_ref(), |m| {
@@ -358,22 +335,22 @@ impl Bot {
                         task.title,
                     );
 
+                    if let Ok(Some(request)) = request {
+                        if request.status == RequestStatus::Accepted {
+                            message = format!(
+                                "{}\n<@{:?}> would be _very_ upset with you if you didn't finish on time.",
+                                message,
+                                request.requested_user,
+                            );
+                        }
+                    }
+
                     if let Some(due_at) = task.due_at {
                         message = format!(
                             "{}\n\nyou have until <t:{:?}>. use your time wisely.",
                             message,
                             due_at,
                         );
-                    }
-
-                    if let Some(request) = request {
-                        if request.status == RequestStatus::Accepted {
-                            message = format!(
-                                "{}\n\n<@{:?}> would be _very_ upset with you if you didn't finish on time.",
-                                message,
-                                request.requested_user,
-                            );
-                        }
                     }
 
                     m.content(message)

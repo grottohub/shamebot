@@ -23,7 +23,7 @@ impl Env {
         let postgres_port = env::var("SHAMEBOT_POSTGRES_PORT")
             .map_err(|_| warn!("environment variable SHAMEBOT_POSTGRES_PORT not set"))
             .unwrap_or_default();
-        
+
         Env {
             postgres_user,
             postgres_password,

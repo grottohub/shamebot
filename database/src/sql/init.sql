@@ -1,3 +1,22 @@
+-- this table would get initialized by tokio-cron-scheduler, but since we
+-- reference it we need to create it here
+CREATE TABLE IF NOT EXISTS job (
+    id              uuid,
+    last_updated    BIGINT,
+    next_tick       BIGINT,
+    last_tick       BIGINT,
+    job_type        INTEGER NOT NULL,
+    count           INTEGER,
+    ran             BOOL,
+    stopped         BOOL,
+    schedule        TEXT,
+    repeating       BOOL,
+    repeated_every  BIGINT,
+    extra           BYTEA,
+    CONSTRAINT pk_metadata PRIMARY KEY (id)
+);
+
+
 -- minimal reference to a Discord server (aka guild)
 CREATE TABLE IF NOT EXISTS guilds (
     id      BIGINT PRIMARY KEY, -- should accomodate Discord snowflakes
@@ -38,15 +57,18 @@ CREATE TABLE IF NOT EXISTS lists (
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
-    id          uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-    list_id     uuid REFERENCES lists (id) NOT NULL,
-    user_id     BIGINT REFERENCES users (id) NOT NULL,
-    title       VARCHAR(80) NOT NULL,
-    content     TEXT,
-    checked     BOOLEAN DEFAULT false,
-    pester      SMALLINT DEFAULT 0,
-    due_at      BIGINT DEFAULT 0, -- this is a UNIX timestamp for easy formatting on Discord
-    proof_id    uuid REFERENCES proof (id)
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    list_id         uuid REFERENCES lists (id) NOT NULL,
+    user_id         BIGINT REFERENCES users (id) NOT NULL,
+    title           VARCHAR(80) NOT NULL,
+    content         TEXT,
+    checked         BOOLEAN DEFAULT false,
+    pester          SMALLINT DEFAULT 0,
+    due_at          BIGINT DEFAULT 0, -- this is a UNIX timestamp for easy formatting on Discord
+    proof_id        uuid REFERENCES proof (id),
+    pester_job      uuid REFERENCES job(id),
+    overdue_job     uuid REFERENCES job(id),
+    reminder_job    uuid REFERENCES job(id)
 );
 
 CREATE TYPE accepted AS ENUM ('accepted', 'pending', 'rejected');

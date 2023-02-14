@@ -1,2 +1,2 @@
-mod environment;
 pub mod bot;
+mod environment;

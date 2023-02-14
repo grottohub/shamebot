@@ -1,8 +1,17 @@
 // the bot will not always be listening, but is the only way to
 // hit Discord's API
-use database::prelude::{AccountabilityRequest, Client as DbClient, Task, Guild, List, RequestStatus};
-use log::{info, error};
-use serenity::{prelude::*, async_trait, model::{prelude::{Ready, Member, GuildId, UserId, PrivateChannel, ChannelId, ChannelType}, user::User}};
+use database::prelude::{
+    AccountabilityRequest, Client as DbClient, Guild, List, RequestStatus, Task,
+};
+use log::{error, info};
+use serenity::{
+    async_trait,
+    model::{
+        prelude::{ChannelId, ChannelType, GuildId, Member, PrivateChannel, Ready, UserId},
+        user::User,
+    },
+    prelude::*,
+};
 use uuid::Uuid;
 
 use crate::environment::Env;
@@ -33,7 +42,7 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e))
             .unwrap();
-        
+
         let db_client = DbClient::new().await;
 
         Bot {
@@ -65,7 +74,7 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
+
         let mut channels: Vec<ChannelId> = Vec::new();
 
         if let Some(all_channels) = all_channels {
@@ -99,50 +108,45 @@ impl Bot {
 
     pub async fn send_dm(&self, user_id: u64, message: String) {
         let http = self.client.cache_and_http.http.as_ref();
-        let channel = self
-            .create_dm(user_id)
-            .await;
-        
+        let channel = self.create_dm(user_id).await;
+
         if let Some(channel) = channel {
-            channel.send_message(http, |m| {
-                m.content(message)
-            })
-            .await
-            .map_err(|e| error!("{:?}", e))
-            .ok();
+            channel
+                .send_message(http, |m| m.content(message))
+                .await
+                .map_err(|e| error!("{:?}", e))
+                .ok();
         }
     }
 
     pub async fn send_accountability_request(&self, request: AccountabilityRequest) {
         let http = self.client.cache_and_http.http.as_ref();
-        let channel = self
-            .create_dm(request.requested_user as u64)
-            .await;
-        
+        let channel = self.create_dm(request.requested_user as u64).await;
+
         let task = Task::get(&self.db_client, request.task_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
+
         if let (Some(task), Some(channel)) = (task, channel) {
-            channel.send_message(http, |m| {
-                m.embed(|emb| {
-                    emb
-                        .title("Accountability Request")
-                        .description(format!("<@{:?}> has requested you as an accountability partner.", request.requesting_user))
-                        .field("Task", task.title, false)
-                        .url(
-                            format!(
+            channel
+                .send_message(http, |m| {
+                    m.embed(|emb| {
+                        emb.title("Accountability Request")
+                            .description(format!(
+                                "<@{:?}> has requested you as an accountability partner.",
+                                request.requesting_user
+                            ))
+                            .field("Task", task.title, false)
+                            .url(format!(
                                 "{}/accountability?task={:?}",
-                                self.env.shamebot_url,
-                                task.id,
-                            )
-                        )
+                                self.env.shamebot_url, task.id,
+                            ))
+                    })
                 })
-            })
-            .await
-            .map_err(|e| error!("{:?}", e))
-            .ok();
+                .await
+                .map_err(|e| error!("{:?}", e))
+                .ok();
         }
     }
 
@@ -151,12 +155,12 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-      
+
         let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
+
         if let (Some(task), Some(guild)) = (task, guild) {
             let checkbox = match task.checked {
                 true => ":white_check_mark:",
@@ -173,11 +177,7 @@ impl Bot {
             let channel_id = guild.send_to.unwrap_or_default();
             ChannelId(channel_id as u64)
                 .send_message(self.client.cache_and_http.http.as_ref(), |m| {
-                    m.embed(|emb| {
-                        emb.title(task.title)
-                           .description(desc)
-                           .url(url)
-                    })
+                    m.embed(|emb| emb.title(task.title).description(desc).url(url))
                 })
                 .await
                 .map_err(|e| error!("{:?}", e))
@@ -190,7 +190,7 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
+
         let tasks = List::get_tasks(&self.db_client, list_id)
             .await
             .map_err(|e| error!("{:?}", e))
@@ -200,7 +200,7 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
+
         if let (Some(list), Some(tasks), Some(guild)) = (list, tasks, guild) {
             let owner = format!("for <@{:?}>", list.user_id);
             let url = format!("{}/lists/{}", self.env.shamebot_url, list.id);
@@ -209,7 +209,7 @@ impl Bot {
                 .send_message(self.client.cache_and_http.http.as_ref(), |m| {
                     m.embed(|emb| {
                         emb.title(list.title);
-                        
+
                         for task in tasks {
                             let checkbox = match task.checked {
                                 true => ":white_check_mark:",
@@ -227,8 +227,7 @@ impl Bot {
                             emb.field(task.title, desc, false);
                         }
 
-                        emb.field("Owner", owner, false)
-                            .url(url)
+                        emb.field("Owner", owner, false).url(url)
                     })
                 })
                 .await
@@ -247,9 +246,11 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
+
         if let (Some(task), Some(guild)) = (task, guild) {
-            if task.checked { return }
+            if task.checked {
+                return;
+            }
 
             let channel_id = guild.send_to.unwrap_or_default();
             ChannelId(channel_id as u64)
@@ -270,36 +271,36 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
+
         let request = AccountabilityRequest::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e));
-        
+
         let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
 
         if let (Some(task), Some(guild)) = (task, guild) {
-            if task.checked { return }
+            if task.checked {
+                return;
+            }
 
             let channel_id = guild.send_to.unwrap_or_default();
             ChannelId(channel_id as u64)
                 .send_message(self.client.cache_and_http.http.as_ref(), |m| {
                     let mut message = format!(
                         "your time to complete {} is up, <@{:?}>. i am very disappointed in you.",
-                        task.title,
-                        task.user_id,
+                        task.title, task.user_id,
                     );
 
                     if let Ok(Some(request)) = request {
                         message = format!(
                             "{}\n\n<@{:?}>, how could you let this happen?",
-                            message,
-                            request.requested_user,
+                            message, request.requested_user,
                         );
                     }
-                    
+
                     m.content(message)
                 })
                 .await
@@ -313,7 +314,7 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
-        
+
         let request = AccountabilityRequest::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e));
@@ -324,7 +325,9 @@ impl Bot {
             .ok();
 
         if let (Some(task), Some(guild)) = (task, guild) {
-            if task.checked { return }
+            if task.checked {
+                return;
+            }
 
             let channel_id = guild.send_to.unwrap_or_default();
             ChannelId(channel_id as u64)

@@ -21,7 +21,7 @@ impl Env {
         let shamebot_url = env::var("SHAMEBOT_URL")
             .map_err(|_| warn!("environment variable SHAMEBOT_URL not set"))
             .unwrap_or_default();
-        
+
         Env {
             discord_token,
             discord_guild,

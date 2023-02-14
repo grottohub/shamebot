@@ -167,7 +167,7 @@ impl Bot {
                 false => ":white_large_square:",
             };
             let owner = format!("for <@{:?}>", task.user_id);
-            let mut desc = format!("");
+            let mut desc = String::new();
 
             if let Some(content) = task.content {
                 desc = format!("{}\n", content);
@@ -185,7 +185,7 @@ impl Bot {
         }
     }
 
-    pub async fn send_list(&mut self, list_id: Uuid) {
+    pub async fn send_list(&self, list_id: Uuid) {
         let list = List::get(&self.db_client, list_id)
             .await
             .map_err(|e| error!("{:?}", e))
@@ -196,7 +196,7 @@ impl Bot {
             .map_err(|e| error!("{:?}", e))
             .ok();
 
-        let guild = Guild::get(&mut self.db_client, self.env.discord_guild as i64)
+        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
@@ -216,7 +216,7 @@ impl Bot {
                                 false => ":white_large_square:",
                             };
 
-                            let mut desc = format!("");
+                            let mut desc = String::new();
 
                             if let Some(content) = task.content {
                                 desc = format!("{}\n", content);

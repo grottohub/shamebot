@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use mobc::{Connection, Pool};
-use mobc_postgres::tokio_postgres::{Error as PgError, NoTls, Row};
+use mobc_postgres::tokio_postgres::{NoTls, Row};
 use mobc_postgres::{tokio_postgres, PgConnectionManager};
 use postgres_types::{FromSql, ToSql};
 use thiserror::Error;
+use tokio::task::JoinError;
 use uuid::Uuid;
 
 pub use crate::client::Client;
@@ -101,6 +102,36 @@ impl User {
         let user = User::insert(db_client, id, username, discriminator, avatar_hash).await?;
 
         Ok(user.into())
+    }
+
+    pub async fn new_batch(
+        db_client: &Client,
+        ids: Vec<i64>,
+        usernames: Vec<String>,
+        discriminators: Vec<String>,
+        avatar_hashes: Vec<String>,
+    ) -> Result<Vec<User>, DatabaseError> {
+        let zipped = ids.iter()
+            .zip(usernames)
+            .zip(discriminators)
+            .zip(avatar_hashes);
+
+        let mut user_instantiations = Vec::new();
+
+        for user in zipped {
+            let (((id, username), discriminator), avatar_hash) = user;
+            user_instantiations.push(User::new(db_client, *id, username, discriminator, avatar_hash));
+        } 
+
+        futures::future::try_join_all(
+            user_instantiations
+        ).await
+    }
+
+    pub async fn batch_associate(db_client: &Client, users: Vec<User>, guild: Guild) -> Result<(), DatabaseError> {
+        Ok(for user in users {
+            user.associate(db_client, guild.clone()).await?;
+        })
     }
 
     pub async fn associate(&self, db_client: &Client, guild: Guild) -> Result<(), DatabaseError> {
@@ -610,8 +641,10 @@ pub type DatabasePool = Pool<PgConnectionManager<NoTls>>;
 pub enum DatabaseError {
     #[error("error getting connection from DB pool: {0}")]
     DBPoolError(mobc::Error<tokio_postgres::Error>),
-    #[error("error executing DB query: {0}")]
-    DBQueryError(#[from] PgError),
+    #[error("error executing of preparing DB query: {0}")]
+    DBQueryError(#[from] tokio_postgres::Error),
+    #[error("error joining spawned tasks: {0}")]
+    JoinTaskError(#[from] JoinError),
     #[error("unknown error occurred")]
     DBGenericError(),
 }

@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration};
+use std::{str::FromStr, time::Duration, sync::Arc};
 
 use log::error;
 use mobc::Pool as MobcPool;
@@ -6,10 +6,12 @@ use mobc_postgres::{
     tokio_postgres::{types::ToSql, Config, NoTls, Row, ToStatement},
     PgConnectionManager,
 };
+use tokio_postgres::Statement;
 
 use crate::environment;
 use crate::prelude::{DatabaseConnection, DatabaseError, DatabasePool};
 
+#[derive(Clone)]
 struct Pool {
     pool: DatabasePool,
 }
@@ -47,6 +49,7 @@ impl Pool {
     }
 }
 
+#[derive(Clone)]
 pub struct Client {
     pool: Pool,
 }
@@ -56,6 +59,74 @@ impl Client {
         let pool = Pool::new().await;
 
         Client { pool }
+    }
+
+    // db is considered healthy if:
+    // a) connection can be made from the pool
+    // b) all of the expected tables exist
+    pub async fn healthy(&self) -> bool {
+        // casting via ::regclass will raise an error if the table does not exist
+        let query = "SELECT
+            'job'::regclass,
+            'guilds'::regclass,
+            'users'::regclass,
+            'user_guild'::regclass,
+            'proof'::regclass,
+            'lists'::regclass,
+            'tasks'::regclass,
+            'accountability_requests'::regclass";
+        self.query_one(query, &[])
+            .await
+            .map_err(|e| error!("{:?}", e))
+            .is_ok()
+    }
+
+    // batches must use the same connection from the pool, see: https://www.postgresql.org/docs/current/sql-prepare.html
+    // note: these should be order independent, i.e. this should not be used in place of a transaction
+    pub async fn batch_prepare(
+        &self,
+        conn: Arc<DatabaseConnection>,
+        queries: Vec<&str>,
+    ) -> Result<Vec<Statement>, tokio_postgres::Error> {
+        futures::future::try_join_all(
+            queries.iter().map(|query| async {
+                conn.prepare(query).await
+            })
+        ).await
+    }
+
+    pub async fn batch_execute_shared_stmt(
+        &self,
+        conn: Arc<DatabaseConnection>,
+        statement: Statement,
+        params: Vec<&[&(dyn ToSql + Sync)]>,
+    ) -> Result<Vec<u64>, tokio_postgres::Error> {
+        futures::future::try_join_all(
+            params.iter().map(|param| async {
+                conn.execute(&statement, param).await
+            })
+        ).await
+    }
+
+    pub async fn batch_execute(
+        &self,
+        conn: Arc<DatabaseConnection>,
+        statements: Vec<Statement>,
+        params: Vec<&[&(dyn ToSql + Sync)]>,
+    ) -> Result<Vec<u64>, tokio_postgres::Error> {
+        futures::future::try_join_all(
+            statements.iter().zip(params).map(|group| async {
+                conn.execute(group.0, group.1).await
+            })
+        ).await
+    }
+
+    pub async fn prepare<T>(
+        &self,
+        conn: Arc<DatabaseConnection>,
+        query: &str,
+    ) -> Result<Statement, tokio_postgres::Error> {
+        conn.prepare(query).await
     }
 
     pub async fn query_one<T>(

@@ -11,6 +11,7 @@ use tokio_cron_scheduler::{
 };
 use uuid::Uuid;
 
+#[derive(Clone)]
 pub struct Scheduler {
     scheduler: JobScheduler,
     db_client: Client,
@@ -46,6 +47,10 @@ impl Scheduler {
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
+    }
+
+    pub async fn healthy(&self) -> bool {
+        self.scheduler.inited().await
     }
 
     pub async fn resume_jobs(&self) {

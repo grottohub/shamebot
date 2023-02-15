@@ -6,3 +6,10 @@ services:
       dockerfile: ./docker/Dockerfile
     ports:
       - 8001:5432
+  cron:
+    image: shamebot/cron
+    build:
+      context: .
+      dockerfile: ./cron/docker/Dockerfile
+    ports:
+      - 3030:3030

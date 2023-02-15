@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use cronjob::Scheduler;
 use database::prelude::Client;
-use log::info;
+use log::{info, warn};
 use utils::logging;
 use uuid::Uuid;
 use warp::Filter;
@@ -14,8 +14,14 @@ mod server;
 async fn main() {
     logging::configure(String::from("cron"));
 
-    let scheduler = Arc::new(Scheduler::new().await);
     let db_client = Client::new().await;
+
+    while !db_client.healthy().await {
+        warn!("db not healthy, retrying in 5s...");
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+
+    let scheduler = Arc::new(Scheduler::new().await);
 
     scheduler
         .start()
@@ -48,5 +54,5 @@ async fn main() {
         .or(get_jobs_route);
 
     info!("listening on port 3030");
-    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+    warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;
 }

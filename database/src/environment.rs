@@ -11,17 +11,17 @@ pub struct Env {
 
 impl Env {
     pub async fn new() -> Self {
-        let postgres_user = env::var("SHAMEBOT_POSTGRES_USER")
-            .map_err(|_| warn!("environment variable SHAMEBOT_POSTGRES_USER not set"))
+        let postgres_user = env::var("POSTGRES_USERNAME")
+            .map_err(|_| warn!("environment variable POSTGRES_USERNAME not set"))
             .unwrap_or_default();
-        let postgres_password = env::var("SHAMEBOT_POSTGRES_PASSWORD")
-            .map_err(|_| warn!("environment variable SHAMEBOT_POSTGRES_PASSWORD not set"))
+        let postgres_password = env::var("POSTGRES_PASSWORD")
+            .map_err(|_| warn!("environment variable POSTGRES_PASSWORD not set"))
             .unwrap_or_default();
-        let postgres_host = env::var("SHAMEBOT_POSTGRES_HOST")
-            .map_err(|_| warn!("environment variable SHAMEBOT_POSTGRES_HOST not set"))
+        let postgres_host = env::var("POSTGRES_HOST")
+            .map_err(|_| warn!("environment variable POSTGRES_HOST not set"))
             .unwrap_or_default();
-        let postgres_port = env::var("SHAMEBOT_POSTGRES_PORT")
-            .map_err(|_| warn!("environment variable SHAMEBOT_POSTGRES_PORT not set"))
+        let postgres_port = env::var("POSTGRES_PORT")
+            .map_err(|_| warn!("environment variable POSTGRES_PORT not set"))
             .unwrap_or_default();
 
         Env {

@@ -10,7 +10,11 @@ chrono = "0.4.23"
 database = { version = "0.1.0", path = "../database" }
 discord = { version = "0.1.0", path = "../discord" }
 log = "0.4.17"
-tokio = { version = "1.25.0", features = ["rt", "macros"] }
+serde = { version = "1.0.152", features = ["derive"] }
+serde_derive = "1.0.152"
+thiserror = "1.0.38"
+tokio = { version = "1.25.0", features = ["full"] }
 tokio-cron-scheduler = { version = "0.9.4", features = ["postgres_storage"] }
 utils = { version = "0.1.0", path = "../utils" }
-uuid = { version = "1.3.0", features = ["v4"] }
+uuid = { version = "1.3.0", features = ["v4", "serde"] }
+warp = "0.3.3"

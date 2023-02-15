@@ -53,6 +53,13 @@ impl Scheduler {
         self.scheduler.inited().await
     }
 
+    pub async fn get_jobs(&self, task_id: Uuid) -> Option<TaskJobs> {
+        Task::collect_jobs(&self.db_client, task_id)
+            .await
+            .map_err(|e| error!("{:?}", e))
+            .ok()
+    }
+
     pub async fn resume_jobs(&self) {
         info!("attempting to resume existing jobs");
 

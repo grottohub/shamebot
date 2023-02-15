@@ -111,7 +111,8 @@ impl User {
         discriminators: Vec<String>,
         avatar_hashes: Vec<String>,
     ) -> Result<Vec<User>, DatabaseError> {
-        let zipped = ids.iter()
+        let zipped = ids
+            .iter()
             .zip(usernames)
             .zip(discriminators)
             .zip(avatar_hashes);
@@ -120,15 +121,23 @@ impl User {
 
         for user in zipped {
             let (((id, username), discriminator), avatar_hash) = user;
-            user_instantiations.push(User::new(db_client, *id, username, discriminator, avatar_hash));
-        } 
+            user_instantiations.push(User::new(
+                db_client,
+                *id,
+                username,
+                discriminator,
+                avatar_hash,
+            ));
+        }
 
-        futures::future::try_join_all(
-            user_instantiations
-        ).await
+        futures::future::try_join_all(user_instantiations).await
     }
 
-    pub async fn batch_associate(db_client: &Client, users: Vec<User>, guild: Guild) -> Result<(), DatabaseError> {
+    pub async fn batch_associate(
+        db_client: &Client,
+        users: Vec<User>,
+        guild: Guild,
+    ) -> Result<(), DatabaseError> {
         Ok(for user in users {
             user.associate(db_client, guild.clone()).await?;
         })

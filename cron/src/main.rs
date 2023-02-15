@@ -23,14 +23,10 @@ async fn main() {
 
     let scheduler = Arc::new(Scheduler::new().await);
 
-    scheduler
-        .start()
-        .await;
-    
-    scheduler
-        .resume_jobs()
-        .await;
-    
+    scheduler.start().await;
+
+    scheduler.resume_jobs().await;
+
     let health_route = warp::get()
         .and(warp::path("health"))
         .and(server::middleware::with_db(db_client))
@@ -42,16 +38,14 @@ async fn main() {
         .and(warp::path::param::<Uuid>())
         .and(server::middleware::with_scheduler(Arc::clone(&scheduler)))
         .and_then(server::handlers::register_handler);
-    
+
     let get_jobs_route = warp::get()
         .and(warp::path("task"))
         .and(warp::path::param::<Uuid>())
         .and(server::middleware::with_scheduler(Arc::clone(&scheduler)))
         .and_then(server::handlers::get_jobs_handler);
-    
-    let routes = health_route
-        .or(register_route)
-        .or(get_jobs_route);
+
+    let routes = health_route.or(register_route).or(get_jobs_route);
 
     info!("listening on port 3030");
     warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;

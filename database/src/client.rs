@@ -1,4 +1,4 @@
-use std::{str::FromStr, time::Duration, sync::Arc};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
 use log::error;
 use mobc::Pool as MobcPool;
@@ -89,10 +89,11 @@ impl Client {
         queries: Vec<&str>,
     ) -> Result<Vec<Statement>, tokio_postgres::Error> {
         futures::future::try_join_all(
-            queries.iter().map(|query| async {
-                conn.prepare(query).await
-            })
-        ).await
+            queries
+                .iter()
+                .map(|query| async { conn.prepare(query).await }),
+        )
+        .await
     }
 
     pub async fn batch_execute_shared_stmt(
@@ -102,10 +103,11 @@ impl Client {
         params: Vec<&[&(dyn ToSql + Sync)]>,
     ) -> Result<Vec<u64>, tokio_postgres::Error> {
         futures::future::try_join_all(
-            params.iter().map(|param| async {
-                conn.execute(&statement, param).await
-            })
-        ).await
+            params
+                .iter()
+                .map(|param| async { conn.execute(&statement, param).await }),
+        )
+        .await
     }
 
     pub async fn batch_execute(
@@ -115,10 +117,12 @@ impl Client {
         params: Vec<&[&(dyn ToSql + Sync)]>,
     ) -> Result<Vec<u64>, tokio_postgres::Error> {
         futures::future::try_join_all(
-            statements.iter().zip(params).map(|group| async {
-                conn.execute(group.0, group.1).await
-            })
-        ).await
+            statements
+                .iter()
+                .zip(params)
+                .map(|group| async { conn.execute(group.0, group.1).await }),
+        )
+        .await
     }
 
     pub async fn prepare<T>(

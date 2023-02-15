@@ -138,9 +138,10 @@ impl User {
         users: Vec<User>,
         guild: Guild,
     ) -> Result<(), DatabaseError> {
-        Ok(for user in users {
+        for user in users {
             user.associate(db_client, guild.clone()).await?;
-        })
+        }
+        Ok(())
     }
 
     pub async fn associate(&self, db_client: &Client, guild: Guild) -> Result<(), DatabaseError> {

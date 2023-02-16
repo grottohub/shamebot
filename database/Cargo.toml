@@ -12,7 +12,9 @@ log = "0.4.17"
 mobc = "0.8.1"
 mobc-postgres = "0.8.0"
 postgres-types = { version = "0.2.4", features = ["derive"] }
+serde = { version = "1.0.152", features = ["derive"] }
+serde_derive = "1.0.152"
 thiserror = "1.0.38"
 tokio = "1.25.0"
 tokio-postgres = { version = "0.7.7", features = ["with-uuid-1"] }
-uuid = { version = "1.3.0", features = ["v4"] }
+uuid = { version = "1.3.0", features = ["v4", "serde"] }

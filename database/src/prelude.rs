@@ -4,13 +4,14 @@ use mobc::{Connection, Pool};
 use mobc_postgres::tokio_postgres::{NoTls, Row};
 use mobc_postgres::{tokio_postgres, PgConnectionManager};
 use postgres_types::{FromSql, ToSql};
+use serde::{Serialize, Deserialize};
 use thiserror::Error;
 use tokio::task::JoinError;
 use uuid::Uuid;
 
 pub use crate::client::Client;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Guild {
     pub id: i64,
     pub name: String,
@@ -59,7 +60,7 @@ impl Guild {
             SET
                 name = EXCLUDED.name,
                 icon = EXCLUDED.icon,
-                send_tp = EXCLUDED.send_to
+                send_to = EXCLUDED.send_to
             RETURNING *";
         db_client
             .query_one(query, &[&id, &name, &icon, &send_to])
@@ -83,7 +84,7 @@ impl From<Row> for Guild {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub id: i64,
     pub username: String,
@@ -203,7 +204,7 @@ impl From<Row> for User {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct List {
     pub id: Uuid,
     pub title: String,
@@ -266,7 +267,7 @@ impl From<Row> for List {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum JobType {
     Pester,
     Overdue,
@@ -298,7 +299,7 @@ impl From<&str> for JobType {
 
 pub type TaskJobs = HashMap<JobType, Option<Uuid>>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
     pub id: Uuid,
     pub list_id: Uuid,
@@ -481,7 +482,7 @@ impl From<Row> for Task {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Proof {
     pub id: Uuid,
     pub content: Option<String>,
@@ -550,7 +551,7 @@ impl From<Row> for Proof {
     }
 }
 
-#[derive(Debug, Clone, ToSql, FromSql, PartialEq)]
+#[derive(Debug, Clone, ToSql, FromSql, PartialEq, Serialize, Deserialize)]
 #[postgres(name = "accepted")]
 pub enum RequestStatus {
     #[postgres(name = "accepted")]
@@ -561,7 +562,7 @@ pub enum RequestStatus {
     Rejected,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountabilityRequest {
     pub requesting_user: i64,
     pub requested_user: i64,

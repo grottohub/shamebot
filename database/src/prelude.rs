@@ -107,27 +107,17 @@ impl User {
 
     pub async fn new_batch(
         db_client: &Client,
-        ids: Vec<i64>,
-        usernames: Vec<String>,
-        discriminators: Vec<String>,
-        avatar_hashes: Vec<String>,
+        users: Vec<User>,
     ) -> Result<Vec<User>, DatabaseError> {
-        let zipped = ids
-            .iter()
-            .zip(usernames)
-            .zip(discriminators)
-            .zip(avatar_hashes);
-
         let mut user_instantiations = Vec::new();
 
-        for user in zipped {
-            let (((id, username), discriminator), avatar_hash) = user;
+        for user in users {
             user_instantiations.push(User::new(
                 db_client,
-                *id,
-                username,
-                discriminator,
-                avatar_hash,
+                user.id,
+                user.username,
+                user.discriminator,
+                user.avatar_hash,
             ));
         }
 
@@ -138,16 +128,19 @@ impl User {
         db_client: &Client,
         users: Vec<User>,
         guild: Guild,
-    ) -> Result<(), DatabaseError> {
+    ) -> Result<Vec<()>, DatabaseError> {
+        let mut user_associations = Vec::new();
+
         for user in users {
-            user.associate(db_client, guild.clone()).await?;
+            user_associations.push(User::associate(db_client, user.clone(), guild.clone()));
         }
-        Ok(())
+
+        futures::future::try_join_all(user_associations).await
     }
 
-    pub async fn associate(&self, db_client: &Client, guild: Guild) -> Result<(), DatabaseError> {
+    pub async fn associate(db_client: &Client, user: User, guild: Guild) -> Result<(), DatabaseError> {
         let query = "INSERT INTO user_guild (user_id, guild_id) VALUES ($1, $2)";
-        db_client.query_opt(query, &[&self.id, &guild.id]).await?;
+        db_client.query_opt(query, &[&user.id, &guild.id]).await?;
 
         Ok(())
     }

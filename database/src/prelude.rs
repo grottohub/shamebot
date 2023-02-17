@@ -4,7 +4,7 @@ use mobc::{Connection, Pool};
 use mobc_postgres::tokio_postgres::{NoTls, Row};
 use mobc_postgres::{tokio_postgres, PgConnectionManager};
 use postgres_types::{FromSql, ToSql};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::task::JoinError;
 use uuid::Uuid;
@@ -32,11 +32,29 @@ impl Guild {
         Ok(guild.into())
     }
 
-    pub async fn get(db_client: &Client, id: i64) -> Result<Self, DatabaseError> {
+    pub async fn get(db_client: &Client, id: i64) -> Result<Option<Self>, DatabaseError> {
         let query = "SELECT * FROM guilds WHERE id = $1";
-        let guild = db_client.query_one(query, &[&id]).await?;
+        let guild = db_client.query_opt(query, &[&id]).await?;
 
-        Ok(guild.into())
+        if let Some(guild) = guild {
+            Ok(Some(guild.into()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn get_users(db_client: &Client, guild_id: i64) -> Result<Vec<User>, DatabaseError> {
+        let query =
+            "SELECT * FROM users WHERE id IN (SELECT user_id FROM user_guild WHERE guild_id = $1)";
+        let result = db_client.query(query, &[&guild_id]).await?;
+
+        let mut users: Vec<User> = Vec::new();
+
+        for u in result {
+            users.push(u.into())
+        }
+
+        Ok(users)
     }
 
     pub async fn delete(db_client: &Client, id: i64) -> Result<(), DatabaseError> {
@@ -126,30 +144,38 @@ impl User {
 
     pub async fn batch_associate(
         db_client: &Client,
-        users: Vec<User>,
-        guild: Guild,
+        user_ids: Vec<i64>,
+        guild_id: i64,
     ) -> Result<Vec<()>, DatabaseError> {
         let mut user_associations = Vec::new();
 
-        for user in users {
-            user_associations.push(User::associate(db_client, user.clone(), guild.clone()));
+        for user_id in user_ids {
+            user_associations.push(User::associate(db_client, user_id, guild_id));
         }
 
         futures::future::try_join_all(user_associations).await
     }
 
-    pub async fn associate(db_client: &Client, user: User, guild: Guild) -> Result<(), DatabaseError> {
+    pub async fn associate(
+        db_client: &Client,
+        user_id: i64,
+        guild_id: i64,
+    ) -> Result<(), DatabaseError> {
         let query = "INSERT INTO user_guild (user_id, guild_id) VALUES ($1, $2)";
-        db_client.query_opt(query, &[&user.id, &guild.id]).await?;
+        db_client.query_opt(query, &[&user_id, &guild_id]).await?;
 
         Ok(())
     }
 
-    pub async fn get(db_client: &Client, id: i64) -> Result<Self, DatabaseError> {
+    pub async fn get(db_client: &Client, id: i64) -> Result<Option<Self>, DatabaseError> {
         let query = "SELECT * FROM users WHERE id = $1";
-        let user = db_client.query_one(query, &[&id]).await?;
+        let user = db_client.query_opt(query, &[&id]).await?;
 
-        Ok(user.into())
+        if let Some(user) = user {
+            Ok(Some(user.into()))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn delete(db_client: &Client, id: i64) -> Result<(), DatabaseError> {
@@ -215,11 +241,15 @@ impl List {
         Ok(list.into())
     }
 
-    pub async fn get(db_client: &Client, id: Uuid) -> Result<Self, DatabaseError> {
+    pub async fn get(db_client: &Client, id: Uuid) -> Result<Option<Self>, DatabaseError> {
         let query = "SELECT * FROM lists WHERE id = $1";
-        let list = db_client.query_one(query, &[&id]).await?;
+        let list = db_client.query_opt(query, &[&id]).await?;
 
-        Ok(list.into())
+        if let Some(l) = list {
+            Ok(Some(l.into()))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn delete(db_client: &Client, id: Uuid) -> Result<(), DatabaseError> {
@@ -324,11 +354,15 @@ impl Task {
         Ok(task.into())
     }
 
-    pub async fn get(db_client: &Client, id: Uuid) -> Result<Self, DatabaseError> {
+    pub async fn get(db_client: &Client, id: Uuid) -> Result<Option<Self>, DatabaseError> {
         let query = "SELECT * FROM tasks WHERE id = $1";
-        let task = db_client.query_one(query, &[&id]).await?;
+        let task = db_client.query_opt(query, &[&id]).await?;
 
-        Ok(task.into())
+        if let Some(t) = task {
+            Ok(Some(t.into()))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn delete(db_client: &Client, id: Uuid) -> Result<(), DatabaseError> {
@@ -494,11 +528,15 @@ impl Proof {
         Ok(proof.into())
     }
 
-    pub async fn get(db_client: &Client, id: Uuid) -> Result<Self, DatabaseError> {
+    pub async fn get(db_client: &Client, id: Uuid) -> Result<Option<Self>, DatabaseError> {
         let query = "SELECT * FROM proof WHERE id = $1";
-        let proof = db_client.query_one(query, &[&id]).await?;
+        let proof = db_client.query_opt(query, &[&id]).await?;
 
-        Ok(proof.into())
+        if let Some(p) = proof {
+            Ok(Some(p.into()))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn approve(db_client: &Client, id: Uuid) -> Result<(), DatabaseError> {
@@ -544,7 +582,7 @@ impl From<Row> for Proof {
     }
 }
 
-#[derive(Debug, Clone, ToSql, FromSql, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, ToSql, FromSql, PartialEq, Serialize, Deserialize)]
 #[postgres(name = "accepted")]
 pub enum RequestStatus {
     #[postgres(name = "accepted")]
@@ -645,7 +683,7 @@ pub type DatabasePool = Pool<PgConnectionManager<NoTls>>;
 pub enum DatabaseError {
     #[error("error getting connection from DB pool: {0}")]
     DBPoolError(mobc::Error<tokio_postgres::Error>),
-    #[error("error executing of preparing DB query: {0}")]
+    #[error("error executing or preparing DB query: {0}")]
     DBQueryError(#[from] tokio_postgres::Error),
     #[error("error joining spawned tasks: {0}")]
     JoinTaskError(#[from] JoinError),

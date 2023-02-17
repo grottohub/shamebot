@@ -251,12 +251,42 @@ pub mod list {
     }
 
     pub mod task {
-        use database::prelude::{Client, List, Task};
+        use database::prelude::{Client, List, Task, TaskJobs};
+        use log::debug;
+        use rocket::serde::Deserialize;
         use rocket::serde::json::Json;
         use rocket::{http::Status, State};
         use uuid::Uuid;
 
         use crate::routes::GenericResponse;
+
+        #[derive(Debug, Deserialize)]
+        #[serde(crate = "rocket::serde")]
+        #[allow(dead_code)]
+        pub struct JobError {
+            message: String,
+        }
+
+        #[derive(Debug, Deserialize)]
+        #[serde(crate = "rocket::serde")]
+        #[allow(dead_code)]
+        pub struct JobsResponse {
+            status: u16,
+            data: Vec<TaskJobs>,
+            error: Option<JobError>,
+        }
+
+        async fn register_jobs(task_id: Uuid) -> Result<JobsResponse, reqwest::Error> {
+            let client = reqwest::Client::new();
+            let resp = client.post(format!("http://cron:8080/jobs/{:?}", task_id))
+                .send()
+                .await;
+
+            match resp {
+                Ok(r) => r.json::<JobsResponse>().await,
+                Err(e) => Err(e),
+            }
+        }
 
         #[post("/<_id>/task", format = "json", data = "<task>")]
         pub async fn create_task(
@@ -275,7 +305,20 @@ pub mod list {
             )
             .await
             .map(Some);
-            let resp = GenericResponse::from(task);
+            let resp: GenericResponse<Task>;
+
+            if let Some(task) = task.as_ref().ok().unwrap() {
+                register_jobs(task.id)
+                    .await
+                    .map_err(|e| error!("{}", e))
+                    .map(|j| debug!("{:?}", j))
+                    .ok();
+
+                let updated_task = Task::get(db_client, task.id).await;
+                resp = GenericResponse::from(updated_task);
+            } else {
+                resp = GenericResponse::from(task);
+            }
 
             (Status::from_code(resp.status).unwrap(), Json(resp))
         }

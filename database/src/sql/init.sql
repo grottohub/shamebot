@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- many-to-many relationship between users and guilds
 CREATE TABLE IF NOT EXISTS user_guild (
-    user_id     BIGINT REFERENCES users (id) ON UPDATE CASCADE ON DELETE CASCADE,
-    guild_id    BIGINT REFERENCES guilds (id) ON UPDATE CASCADE,
+    user_id     BIGINT REFERENCES users (id) ON DELETE CASCADE,
+    guild_id    BIGINT REFERENCES guilds (id) ON DELETE CASCADE,
     CONSTRAINT user_guild_pkey PRIMARY KEY (user_id, guild_id)
 );
 
@@ -53,13 +53,13 @@ CREATE TABLE IF NOT EXISTS proof (
 CREATE TABLE IF NOT EXISTS lists (
     id          uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     title       VARCHAR(80) NOT NULL,
-    user_id     BIGINT REFERENCES users (id) NOT NULL
+    user_id     BIGINT REFERENCES users (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid (),
-    list_id         uuid REFERENCES lists (id) NOT NULL,
-    user_id         BIGINT REFERENCES users (id) NOT NULL,
+    list_id         uuid REFERENCES lists (id) ON DELETE CASCADE,
+    user_id         BIGINT REFERENCES users (id) ON DELETE CASCADE,
     title           VARCHAR(80) NOT NULL,
     content         TEXT,
     checked         BOOLEAN DEFAULT false,

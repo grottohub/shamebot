@@ -126,7 +126,8 @@ impl Bot {
         let task = Task::get(&self.db_client, request.task_id)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         if let (Some(task), Some(channel)) = (task, channel) {
             channel
@@ -154,12 +155,14 @@ impl Bot {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         if let (Some(task), Some(guild)) = (task, guild) {
             let checkbox = match task.checked {
@@ -189,7 +192,8 @@ impl Bot {
         let list = List::get(&self.db_client, list_id)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         let tasks = List::get_tasks(&self.db_client, list_id)
             .await
@@ -199,7 +203,8 @@ impl Bot {
         let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         if let (Some(list), Some(tasks), Some(guild)) = (list, tasks, guild) {
             let owner = format!("for <@{:?}>", list.user_id);
@@ -240,12 +245,14 @@ impl Bot {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         if let (Some(task), Some(guild)) = (task, guild) {
             if task.checked {
@@ -270,7 +277,8 @@ impl Bot {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         let request = AccountabilityRequest::get(&self.db_client, task_id)
             .await
@@ -279,7 +287,8 @@ impl Bot {
         let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         if let (Some(task), Some(guild)) = (task, guild) {
             if task.checked {
@@ -313,7 +322,8 @@ impl Bot {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         let request = AccountabilityRequest::get(&self.db_client, task_id)
             .await
@@ -322,7 +332,8 @@ impl Bot {
         let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         if let (Some(task), Some(guild)) = (task, guild) {
             if task.checked {

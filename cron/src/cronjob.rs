@@ -96,7 +96,8 @@ impl Scheduler {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
-            .ok();
+            .ok()
+            .unwrap();
 
         let discord_mtx = Arc::new(Mutex::new(Bot::new().await));
 

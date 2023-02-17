@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use chrono::{Datelike, TimeZone, Timelike, Utc};
-use database::prelude::{Client, JobType, Task, TaskJobs};
+use database::prelude::{Client, DatabaseError, JobType, Task, TaskJobs};
 use discord::bot::Bot;
 use log::{error, info};
 use tokio::sync::Mutex;
@@ -53,11 +53,8 @@ impl Scheduler {
         self.scheduler.inited().await
     }
 
-    pub async fn get_jobs(&self, task_id: Uuid) -> Option<TaskJobs> {
-        Task::collect_jobs(&self.db_client, task_id)
-            .await
-            .map_err(|e| error!("{:?}", e))
-            .ok()
+    pub async fn get_jobs(&self, task_id: Uuid) -> Result<TaskJobs, DatabaseError> {
+        Task::collect_jobs(&self.db_client, task_id).await
     }
 
     pub async fn resume_jobs(&self) {
@@ -87,15 +84,18 @@ impl Scheduler {
                     }
                 }
 
-                self.register_all(task_id).await;
+                self.register_all(task_id)
+                    .await
+                    .map_err(|e| error!("{}", e))
+                    .ok();
             }
         }
     }
 
-    pub async fn register_all(&self, task_id: Uuid) -> Option<TaskJobs> {
+    pub async fn register_all(&self, task_id: Uuid) -> Result<TaskJobs, DatabaseError> {
         let task = Task::get(&self.db_client, task_id)
             .await
-            .map_err(|e| error!("{:?}", e))
+            .map_err(|e| error!("{}", e))
             .ok()
             .unwrap();
 
@@ -144,10 +144,7 @@ impl Scheduler {
             }
         }
 
-        Task::collect_jobs(&self.db_client, task_id)
-            .await
-            .map_err(|e| error!("{:?}", e))
-            .ok()
+        Task::collect_jobs(&self.db_client, task_id).await
     }
 
     pub async fn register_pester_job(
@@ -168,7 +165,7 @@ impl Scheduler {
                 info!("triggered cron {:?}", uuid);
             })
         })
-        .map_err(|e| error!("{:?}", e))
+        .map_err(|e| error!("{}", e))
         .ok();
 
         if let Some(job) = job {
@@ -176,13 +173,13 @@ impl Scheduler {
                 .scheduler
                 .add(job)
                 .await
-                .map_err(|e| error!("{:?}", e))
+                .map_err(|e| error!("{}", e))
                 .ok();
 
             if let Some(uuid) = uuid {
                 Task::attach_job(&self.db_client, task_id, uuid, JobType::Pester)
                     .await
-                    .map_err(|e| error!("{:?}", e))
+                    .map_err(|e| error!("{}", e))
                     .ok();
 
                 info!("registered cron {:?} for task {:?}", uuid, task_id);
@@ -210,7 +207,7 @@ impl Scheduler {
                 info!("triggered cron {:?}", uuid);
             })
         })
-        .map_err(|e| error!("{:?}", e))
+        .map_err(|e| error!("{}", e))
         .ok();
 
         if let Some(job) = job {
@@ -218,13 +215,13 @@ impl Scheduler {
                 .scheduler
                 .add(job)
                 .await
-                .map_err(|e| error!("{:?}", e))
+                .map_err(|e| error!("{}", e))
                 .ok();
 
             if let Some(uuid) = uuid {
                 Task::attach_job(&self.db_client, task_id, uuid, JobType::Reminder)
                     .await
-                    .map_err(|e| error!("{:?}", e))
+                    .map_err(|e| error!("{}", e))
                     .ok();
 
                 info!("registered cron {:?} for task {:?}", uuid, task_id);
@@ -252,7 +249,7 @@ impl Scheduler {
                 info!("triggered cron {:?}", uuid);
             })
         })
-        .map_err(|e| error!("{:?}", e))
+        .map_err(|e| error!("{}", e))
         .ok();
 
         if let Some(job) = job {
@@ -260,13 +257,13 @@ impl Scheduler {
                 .scheduler
                 .add(job)
                 .await
-                .map_err(|e| error!("{:?}", e))
+                .map_err(|e| error!("{}", e))
                 .ok();
 
             if let Some(uuid) = uuid {
                 Task::attach_job(&self.db_client, task_id, uuid, JobType::Overdue)
                     .await
-                    .map_err(|e| error!("{:?}", e))
+                    .map_err(|e| error!("{}", e))
                     .ok();
 
                 info!("registered cron {:?} for task {:?}", uuid, task_id);

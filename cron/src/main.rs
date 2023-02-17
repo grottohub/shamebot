@@ -1,17 +1,19 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
+
+#[macro_use]
+extern crate rocket;
 
 use cronjob::Scheduler;
 use database::prelude::Client;
-use log::{info, warn};
+use log::warn;
 use utils::logging;
-use uuid::Uuid;
-use warp::Filter;
 
 mod cronjob;
-mod server;
+mod routes;
 
+#[launch]
 #[tokio::main]
-async fn main() {
+async fn rocket() -> _ {
     logging::configure(String::from("cron"));
 
     let db_client = Client::new().await;
@@ -21,32 +23,19 @@ async fn main() {
         tokio::time::sleep(Duration::from_secs(5)).await;
     }
 
-    let scheduler = Arc::new(Scheduler::new().await);
+    let scheduler = Scheduler::new().await;
 
     scheduler.start().await;
 
     scheduler.resume_jobs().await;
 
-    let health_route = warp::get()
-        .and(warp::path("health"))
-        .and(server::middleware::with_db(db_client))
-        .and(server::middleware::with_scheduler(Arc::clone(&scheduler)))
-        .and_then(server::handlers::health_handler);
-
-    let register_route = warp::post()
-        .and(warp::path("task"))
-        .and(warp::path::param::<Uuid>())
-        .and(server::middleware::with_scheduler(Arc::clone(&scheduler)))
-        .and_then(server::handlers::register_handler);
-
-    let get_jobs_route = warp::get()
-        .and(warp::path("task"))
-        .and(warp::path::param::<Uuid>())
-        .and(server::middleware::with_scheduler(Arc::clone(&scheduler)))
-        .and_then(server::handlers::get_jobs_handler);
-
-    let routes = health_route.or(register_route).or(get_jobs_route);
-
-    info!("listening on port 3030");
-    warp::serve(routes).run(([0, 0, 0, 0], 3030)).await;
+    rocket::build()
+        .manage(db_client)
+        .manage(scheduler)
+        .mount("/", routes![routes::health])
+        .mount(
+            "/jobs",
+            routes![routes::jobs::get_jobs, routes::jobs::register_jobs],
+        )
+        .register("/", rocket::catchers![routes::not_found])
 }

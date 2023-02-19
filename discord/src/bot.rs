@@ -4,10 +4,10 @@ use database::prelude::{
     AccountabilityRequest, Client as DbClient, Guild, List, RequestStatus, Task,
 };
 use log::{error, info};
-use serenity::{
+pub use serenity::{
     async_trait,
     model::{
-        prelude::{ChannelId, ChannelType, GuildId, Member, PrivateChannel, Ready, UserId},
+        prelude::{ChannelId, ChannelType, GuildId, GuildChannel, Member, PrivateChannel, Ready, UserId},
         user::User,
     },
     prelude::*,
@@ -58,34 +58,33 @@ impl Bot {
         }
     }
 
-    pub async fn get_guild_members(&self) -> Vec<Member> {
+    pub async fn get_guild_members(&self, guild_id: u64) -> Result<Option<Vec<Member>>, SerenityError> {
         let http = self.client.cache_and_http.http.as_ref();
-        GuildId(self.env.discord_guild)
+        GuildId(guild_id)
             .members(http, None, None)
             .await
-            .map_err(|e| error!("{:?}", e))
-            .unwrap_or_else(|_| Vec::new())
+            .map(Some)
     }
 
-    pub async fn get_text_channels(&self) -> Vec<ChannelId> {
+    pub async fn get_text_channels(&self, guild_id: u64) -> Result<Option<Vec<GuildChannel>>, SerenityError> {
         let http = self.client.cache_and_http.http.as_ref();
-        let all_channels = GuildId(self.env.discord_guild)
+        let all_channels = GuildId(guild_id)
             .channels(http)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok();
 
-        let mut channels: Vec<ChannelId> = Vec::new();
+        let mut channels: Vec<GuildChannel> = Vec::new();
 
         if let Some(all_channels) = all_channels {
             for entry in all_channels {
                 if entry.1.kind == ChannelType::Text {
-                    channels.push(entry.0);
+                    channels.push(entry.1);
                 }
             }
         }
 
-        channels
+        Ok(Some(channels))
     }
 
     pub async fn get_user(&self, user_id: u64) -> Option<User> {
@@ -119,11 +118,12 @@ impl Bot {
         }
     }
 
-    pub async fn send_accountability_request(&self, request: AccountabilityRequest) {
+    pub async fn send_accountability_request(&self, request: &Option<AccountabilityRequest>) {
+        let r = request.as_ref().unwrap();
         let http = self.client.cache_and_http.http.as_ref();
-        let channel = self.create_dm(request.requested_user as u64).await;
+        let channel = self.create_dm(r.requested_user as u64).await;
 
-        let task = Task::get(&self.db_client, request.task_id)
+        let task = Task::get(&self.db_client, r.task_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok()
@@ -136,7 +136,7 @@ impl Bot {
                         emb.title("Accountability Request")
                             .description(format!(
                                 "<@{:?}> has requested you as an accountability partner.",
-                                request.requesting_user
+                                r.requesting_user
                             ))
                             .field("Task", task.title, false)
                             .url(format!(

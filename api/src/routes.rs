@@ -1,4 +1,6 @@
-use database::prelude::{Client, DatabaseError};
+use std::fmt::Display;
+
+use database::prelude::Client;
 use log::error;
 use rocket::serde::Serialize;
 use rocket::{http::Status, State};
@@ -33,8 +35,11 @@ pub struct GenericError {
     message: String,
 }
 
-impl<T> From<Result<Option<T>, DatabaseError>> for GenericResponse<T> {
-    fn from(value: Result<Option<T>, DatabaseError>) -> Self {
+impl<T, E> From<Result<Option<T>, E>> for GenericResponse<T>
+where
+    E: Display,
+{
+    fn from(value: Result<Option<T>, E>) -> Self {
         match value {
             Ok(v) => {
                 if let Some(v) = v {
@@ -114,6 +119,18 @@ pub mod guild {
     ) -> (Status, Json<GenericResponse<Vec<User>>>) {
         let users = Guild::get_users(db_client, id).await.map(Some);
         let resp = GenericResponse::from(users);
+
+        (Status::from_code(resp.status).unwrap(), Json(resp))
+    }
+
+    #[put("/<id>", format = "json", data = "<guild>")]
+    pub async fn update_guild(
+        db_client: &State<Client>,
+        id: i64,
+        guild: Json<Guild>,
+    ) -> (Status, Json<GenericResponse<()>>) {
+        let updated = Guild::update_channel(db_client, id, guild.send_to.unwrap()).await;
+        let resp = GenericResponse::from(updated);
 
         (Status::from_code(resp.status).unwrap(), Json(resp))
     }
@@ -253,8 +270,8 @@ pub mod list {
     pub mod task {
         use database::prelude::{Client, List, Task, TaskJobs};
         use log::debug;
-        use rocket::serde::Deserialize;
         use rocket::serde::json::Json;
+        use rocket::serde::Deserialize;
         use rocket::{http::Status, State};
         use uuid::Uuid;
 
@@ -278,7 +295,8 @@ pub mod list {
 
         async fn register_jobs(task_id: Uuid) -> Result<JobsResponse, reqwest::Error> {
             let client = reqwest::Client::new();
-            let resp = client.post(format!("http://cron:8080/jobs/{:?}", task_id))
+            let resp = client
+                .post(format!("http://cron:8080/jobs/{:?}", task_id))
                 .send()
                 .await;
 
@@ -319,6 +337,19 @@ pub mod list {
             } else {
                 resp = GenericResponse::from(task);
             }
+
+            (Status::from_code(resp.status).unwrap(), Json(resp))
+        }
+
+        #[put("/<_list_id>/task/<_task_id>", format = "json", data = "<task>")]
+        pub async fn update_task(
+            db_client: &State<Client>,
+            _list_id: Uuid,
+            _task_id: Uuid,
+            task: Json<Task>,
+        ) -> (Status, Json<GenericResponse<Task>>) {
+            let updated = Task::update(db_client, task.into_inner()).await;
+            let resp = GenericResponse::from(updated);
 
             (Status::from_code(resp.status).unwrap(), Json(resp))
         }
@@ -417,6 +448,7 @@ pub mod proof {
 
 pub mod accountability {
     use database::prelude::{AccountabilityRequest, Client};
+    use discord::bot::Bot;
     use rocket::serde::json::Json;
     use rocket::{http::Status, State};
     use uuid::Uuid;
@@ -426,6 +458,7 @@ pub mod accountability {
     #[post("/", format = "json", data = "<request>")]
     pub async fn create_request(
         db_client: &State<Client>,
+        discord_bot: &State<Bot>,
         request: Json<AccountabilityRequest>,
     ) -> (Status, Json<GenericResponse<AccountabilityRequest>>) {
         let new_request = AccountabilityRequest::new(
@@ -436,6 +469,11 @@ pub mod accountability {
         )
         .await
         .map(Some);
+
+        if let Ok(r) = new_request.as_ref() {
+            discord_bot.send_accountability_request(r).await;
+        }
+
         let resp = GenericResponse::from(new_request);
 
         (Status::from_code(resp.status).unwrap(), Json(resp))
@@ -474,6 +512,36 @@ pub mod accountability {
     ) -> (Status, Json<GenericResponse<()>>) {
         let deleted = AccountabilityRequest::delete(db_client, id).await.map(Some);
         let resp = GenericResponse::from(deleted);
+
+        (Status::from_code(resp.status).unwrap(), Json(resp))
+    }
+}
+
+pub mod discord {
+    use discord::bot::{Bot, Member, GuildChannel};
+    use rocket::serde::json::Json;
+    use rocket::{http::Status, State};
+
+    use crate::routes::GenericResponse;
+
+    #[get("/guild/<id>/members")]
+    pub async fn get_guild_members(
+        discord_bot: &State<Bot>,
+        id: u64,
+    ) -> (Status, Json<GenericResponse<Vec<Member>>>) {
+        let members = discord_bot.get_guild_members(id).await;
+        let resp = GenericResponse::from(members);
+
+        (Status::from_code(resp.status).unwrap(), Json(resp))
+    }
+
+    #[get("/guild/<id>/channels")]
+    pub async fn get_guild_channels(
+        discord_bot: &State<Bot>,
+        id: u64,
+    ) -> (Status, Json<GenericResponse<Vec<GuildChannel>>>) {
+        let text_channels = discord_bot.get_text_channels(id).await;
+        let resp = GenericResponse::from(text_channels);
 
         (Status::from_code(resp.status).unwrap(), Json(resp))
     }

@@ -2,6 +2,7 @@ FROM rust:1.66 AS builder
 
 WORKDIR /usr/src
 COPY ./database ./database
+COPY ./discord ./discord
 COPY ./utils ./utils
 COPY ./api ./api
 RUN cargo install --path ./api
@@ -16,6 +17,8 @@ ENV POSTGRES_PASSWORD=secret
 ENV POSTGRES_DB=shamebot
 ENV ROCKET_ADDRESS=0.0.0.0
 ENV ROCKET_PORT=8000
+ENV SHAMEBOT_DISCORD_TOKEN=secret
+ENV SHAMEBOT_URL=http://to.do
 
 EXPOSE 8000
 CMD ["api"]

@@ -1,4 +1,6 @@
 use database::prelude::Client;
+use discord::bot::Bot;
+use utils::logging;
 
 #[macro_use]
 extern crate rocket;
@@ -7,9 +9,16 @@ mod routes;
 
 #[launch]
 async fn rocket() -> _ {
+    logging::configure(vec![
+        String::from("api"),
+        String::from("database"),
+        String::from("discord"),
+    ]);
     let db_client = Client::new().await;
+    let discord_bot = Bot::new().await;
     rocket::build()
         .manage(db_client)
+        .manage(discord_bot)
         .mount("/", routes![routes::health])
         .mount(
             "/guild",
@@ -17,7 +26,8 @@ async fn rocket() -> _ {
                 routes::guild::create_guild,
                 routes::guild::get_guild,
                 routes::guild::get_guild_users,
-                routes::guild::delete_guild
+                routes::guild::update_guild,
+                routes::guild::delete_guild,
             ],
         )
         .mount(
@@ -38,6 +48,7 @@ async fn rocket() -> _ {
                 routes::list::task::get_task,
                 routes::list::task::get_tasks,
                 routes::list::task::delete_task,
+                routes::list::task::update_task,
             ],
         )
         .mount(
@@ -56,6 +67,13 @@ async fn rocket() -> _ {
                 routes::accountability::get_request,
                 routes::accountability::update_status,
                 routes::accountability::delete_request,
+            ],
+        )
+        .mount(
+            "/discord",
+            routes![
+                routes::discord::get_guild_members,
+                routes::discord::get_guild_channels,
             ],
         )
         .register("/", rocket::catchers![routes::not_found])

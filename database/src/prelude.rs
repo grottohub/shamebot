@@ -57,6 +57,17 @@ impl Guild {
         Ok(users)
     }
 
+    pub async fn update_channel(
+        db_client: &Client,
+        guild_id: i64,
+        send_to: i64,
+    ) -> Result<Option<()>, DatabaseError> {
+        let query = "UPDATE guilds SET send_to = $1 WHERE id = $2";
+        db_client.query_opt(query, &[&send_to, &guild_id]).await?;
+
+        Ok(Some(()))
+    }
+
     pub async fn delete(db_client: &Client, id: i64) -> Result<(), DatabaseError> {
         let query = "DELETE FROM guilds WHERE id = $1";
         db_client.query_opt(query, &[&id]).await?;
@@ -365,6 +376,39 @@ impl Task {
         }
     }
 
+    pub async fn update(db_client: &Client, task: Task) -> Result<Option<Self>, DatabaseError> {
+        let query = "UPDATE tasks
+            SET
+                list_id = $1,
+                title = $2,
+                content = $3,
+                checked = $4,
+                pester = $5,
+                due_at = $6,
+                proof_id = $7
+            WHERE
+                id = $8";
+        db_client
+            .query_opt(
+                query,
+                &[
+                    &task.list_id,
+                    &task.title,
+                    &task.content,
+                    &task.checked,
+                    &task.pester,
+                    &task.due_at,
+                    &task.proof_id,
+                    &task.id,
+                ],
+            )
+            .await?;
+
+        let slf = Task::get(db_client, task.id).await?;
+
+        Ok(slf)
+    }
+
     pub async fn delete(db_client: &Client, id: Uuid) -> Result<(), DatabaseError> {
         let query = "DELETE FROM tasks WHERE id = $1";
         db_client.query_opt(query, &[&id]).await?;
@@ -393,7 +437,7 @@ impl Task {
         db_client: &Client,
         task_id: Uuid,
         job_id: Uuid,
-        job_type: JobType,
+        job_type: &JobType,
     ) -> Result<(), DatabaseError> {
         let query = format!(
             "UPDATE tasks SET {}_job = NULL WHERE id = $1",

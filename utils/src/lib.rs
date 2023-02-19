@@ -1,7 +1,7 @@
 pub mod logging {
     use fern::colors::{Color, ColoredLevelConfig};
 
-    pub fn configure(module: String) {
+    pub fn configure(modules: Vec<String>) {
         // configure colors for the whole line
         let colors_line = ColoredLevelConfig::new()
             .error(Color::Red)
@@ -17,7 +17,7 @@ pub mod logging {
         // just clone `colors_line` and overwrite our changes
         let colors_level = colors_line.clone().info(Color::Green);
         // here we set up our fern Dispatch
-        fern::Dispatch::new()
+        let mut dispatcher = fern::Dispatch::new()
             .format(move |out, message, record| {
                 out.finish(format_args!(
                     "{color_line}[{date}][{target}][{level}{color_line}] {message}\x1B[0m",
@@ -33,13 +33,18 @@ pub mod logging {
             })
             // set the default log level. to filter out verbose log messages from dependencies, set
             // this to Warn and overwrite the log level for your crate.
-            .level(log::LevelFilter::Warn)
+            .level(log::LevelFilter::Warn);
             // change log levels for individual modules. Note: This looks for the record's target
             // field which defaults to the module path but can be overwritten with the `target`
             // parameter:
             // `info!(target="special_target", "This log message is about special_target");`
-            .level_for(module, log::LevelFilter::Trace)
-            // output to stdout
+        
+        for module in modules {
+            dispatcher = dispatcher
+                .level_for(module, log::LevelFilter::Trace);
+        }
+
+        dispatcher
             .chain(std::io::stdout())
             .apply()
             .unwrap();

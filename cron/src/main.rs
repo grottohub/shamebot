@@ -14,7 +14,11 @@ mod routes;
 #[launch]
 #[tokio::main]
 async fn rocket() -> _ {
-    logging::configure(String::from("cron"));
+    logging::configure(vec![
+        String::from("cron"),
+        String::from("database"),
+        String::from("discord"),
+    ]);
 
     let db_client = Client::new().await;
 
@@ -35,7 +39,11 @@ async fn rocket() -> _ {
         .mount("/", routes![routes::health])
         .mount(
             "/jobs",
-            routes![routes::jobs::get_jobs, routes::jobs::register_jobs],
+            routes![
+                routes::jobs::get_jobs,
+                routes::jobs::register_jobs,
+                routes::jobs::delete_jobs
+            ],
         )
         .register("/", rocket::catchers![routes::not_found])
 }

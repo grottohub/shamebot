@@ -87,4 +87,38 @@ pub mod jobs {
 
         (Status::from_code(resp.status).unwrap(), Json(resp))
     }
+
+    #[delete("/<task_id>")]
+    pub async fn delete_jobs(
+        scheduler: &State<Scheduler>,
+        task_id: Uuid,
+    ) -> (Status, Json<JobsResponse>) {
+        let jobs = scheduler.get_jobs(task_id).await;
+
+        let mut job_errors = Vec::new();
+
+        if let Ok(jobs) = jobs.as_ref() {
+            for job in jobs {
+                if let Some(job_id) = job.1 {
+                    scheduler
+                        .stop_job(job_id)
+                        .await
+                        .map_err(|e| {
+                            error!("{}", e);
+                            job_errors.push(e);
+                        })
+                        .ok();
+                }
+            }
+        }
+
+        let resp = JobsResponse::from(jobs);
+        let mut status_code = resp.status;
+
+        if !job_errors.is_empty() {
+            status_code = 500;
+        }
+
+        (Status::from_code(status_code).unwrap(), Json(resp))
+    }
 }

@@ -7,7 +7,7 @@ use log::{error, info};
 use tokio::sync::Mutex;
 use tokio_cron_scheduler::{
     Job, JobScheduler, PostgresMetadataStore, PostgresNotificationStore, SimpleJobCode,
-    SimpleNotificationCode,
+    SimpleNotificationCode, JobSchedulerError,
 };
 use uuid::Uuid;
 
@@ -57,6 +57,10 @@ impl Scheduler {
         Task::collect_jobs(&self.db_client, task_id).await
     }
 
+    pub async fn stop_job(&self, job_id: &Uuid) -> Result<(), JobSchedulerError> {
+        self.scheduler.remove(job_id).await
+    }
+
     pub async fn resume_jobs(&self) {
         info!("attempting to resume existing jobs");
 
@@ -77,7 +81,7 @@ impl Scheduler {
 
                 for task_job in task_jobs {
                     if let Some(job_id) = task_job.1 {
-                        Task::remove_job(&self.db_client, task_id, job_id, task_job.0)
+                        Task::remove_job(&self.db_client, task_id, job_id, &task_job.0)
                             .await
                             .map_err(|e| error!("{:?}", e))
                             .ok();

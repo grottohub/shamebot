@@ -109,7 +109,7 @@ impl Scheduler {
             if let Some(pester_interval) = task.pester {
                 // TODO: change this back to hours after testing
                 let cron_schedule = format!("1/{:?} * * * * *", pester_interval);
-                self.register_pester_job(Arc::clone(&discord_mtx), task_id, cron_schedule.as_str())
+                self.register_pester_job(Arc::clone(&discord_mtx), task_id, task.guild_id, cron_schedule.as_str())
                     .await;
             }
 
@@ -127,6 +127,7 @@ impl Scheduler {
                 self.register_overdue_job(
                     Arc::clone(&discord_mtx),
                     task_id,
+                    task.guild_id,
                     cron_schedule.as_str(),
                 )
                 .await;
@@ -142,6 +143,7 @@ impl Scheduler {
                 self.register_reminder_job(
                     Arc::clone(&discord_mtx),
                     task_id,
+                    task.guild_id,
                     cron_schedule.as_str(),
                 )
                 .await;
@@ -155,6 +157,7 @@ impl Scheduler {
         &self,
         discord_mtx: Arc<Mutex<Bot>>,
         task_id: Uuid,
+        guild_id: i64,
         cron_schedule: &str,
     ) {
         info!("registering pester cron for task {:?}", task_id);
@@ -164,7 +167,7 @@ impl Scheduler {
             Box::pin(async move {
                 let discord_lock = discord_clone.lock().await;
 
-                discord_lock.send_pester_message(task_id).await;
+                discord_lock.send_pester_message(task_id, guild_id).await;
 
                 info!("triggered cron {:?}", uuid);
             })
@@ -195,6 +198,7 @@ impl Scheduler {
         &self,
         discord_mtx: Arc<Mutex<Bot>>,
         task_id: Uuid,
+        guild_id: i64,
         cron_schedule: &str,
     ) {
         info!("registering reminder cron for task {:?}", task_id);
@@ -204,9 +208,9 @@ impl Scheduler {
             Box::pin(async move {
                 let discord_lock = discord_clone.lock().await;
 
-                discord_lock.send_reminder(task_id).await;
+                discord_lock.send_reminder(task_id, guild_id).await;
 
-                discord_lock.send_task(task_id).await;
+                discord_lock.send_task(task_id, guild_id).await;
 
                 info!("triggered cron {:?}", uuid);
             })
@@ -237,6 +241,7 @@ impl Scheduler {
         &self,
         discord_mtx: Arc<Mutex<Bot>>,
         task_id: Uuid,
+        guild_id: i64,
         cron_schedule: &str,
     ) {
         info!("registering overdue cron for task {:?}", task_id);
@@ -246,9 +251,9 @@ impl Scheduler {
             Box::pin(async move {
                 let discord_lock = discord_clone.lock().await;
 
-                discord_lock.send_overdue_notice(task_id).await;
+                discord_lock.send_overdue_notice(task_id, guild_id).await;
 
-                discord_lock.send_task(task_id).await;
+                discord_lock.send_task(task_id, guild_id).await;
 
                 info!("triggered cron {:?}", uuid);
             })

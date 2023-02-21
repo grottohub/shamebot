@@ -338,6 +338,7 @@ pub struct Task {
     pub id: Uuid,
     pub list_id: Uuid,
     pub user_id: i64,
+    pub guild_id: i64,
     pub title: String,
     pub content: Option<String>,
     pub checked: bool,
@@ -354,13 +355,14 @@ impl Task {
         db_client: &Client,
         list_id: Uuid,
         user_id: i64,
+        guild_id: i64,
         title: String,
         content: Option<String>,
         pester: Option<i16>,
         due_at: Option<i64>,
     ) -> Result<Self, DatabaseError> {
         let task =
-            Task::insert(db_client, list_id, user_id, title, content, pester, due_at).await?;
+            Task::insert(db_client, list_id, user_id, guild_id, title, content, pester, due_at).await?;
 
         Ok(task.into())
     }
@@ -503,19 +505,20 @@ impl Task {
         db_client: &Client,
         list_id: Uuid,
         user_id: i64,
+        guild_id: i64,
         title: String,
         content: Option<String>,
         pester: Option<i16>,
         due_at: Option<i64>,
     ) -> Result<Row, DatabaseError> {
         let query = "INSERT INTO
-            tasks (list_id, user_id, title, content, pester, due_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            tasks (list_id, user_id, guild_id, title, content, pester, due_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *";
         db_client
             .query_one(
                 query,
-                &[&list_id, &user_id, &title, &content, &pester, &due_at],
+                &[&list_id, &user_id, &guild_id, &title, &content, &pester, &due_at],
             )
             .await
     }
@@ -526,6 +529,7 @@ impl From<Row> for Task {
         let id = row.get("id");
         let list_id = row.get("list_id");
         let user_id = row.get("user_id");
+        let guild_id = row.get("guild_id");
         let title = row.get("title");
         let content = row.get("content");
         let checked = row.get("checked");
@@ -540,6 +544,7 @@ impl From<Row> for Task {
             id,
             list_id,
             user_id,
+            guild_id,
             title,
             content,
             checked,

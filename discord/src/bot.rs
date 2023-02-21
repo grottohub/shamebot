@@ -151,14 +151,14 @@ impl Bot {
         }
     }
 
-    pub async fn send_task(&self, task_id: Uuid) {
+    pub async fn send_task(&self, task_id: Uuid, guild_id: i64) {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok()
             .unwrap();
 
-        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
+        let guild = Guild::get(&self.db_client, guild_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok()
@@ -188,7 +188,7 @@ impl Bot {
         }
     }
 
-    pub async fn send_list(&self, list_id: Uuid) {
+    pub async fn send_list(&self, list_id: Uuid, guild_id: i64) {
         let list = List::get(&self.db_client, list_id)
             .await
             .map_err(|e| error!("{:?}", e))
@@ -200,7 +200,7 @@ impl Bot {
             .map_err(|e| error!("{:?}", e))
             .ok();
 
-        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
+        let guild = Guild::get(&self.db_client, guild_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok()
@@ -241,14 +241,14 @@ impl Bot {
         }
     }
 
-    pub async fn send_reminder(&self, task_id: Uuid) {
+    pub async fn send_reminder(&self, task_id: Uuid, guild_id: i64) {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok()
             .unwrap();
 
-        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
+        let guild = Guild::get(&self.db_client, guild_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok()
@@ -273,7 +273,7 @@ impl Bot {
         }
     }
 
-    pub async fn send_overdue_notice(&self, task_id: Uuid) {
+    pub async fn send_overdue_notice(&self, task_id: Uuid, guild_id: i64) {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
@@ -284,7 +284,7 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e));
 
-        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
+        let guild = Guild::get(&self.db_client, guild_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok()
@@ -318,7 +318,7 @@ impl Bot {
         }
     }
 
-    pub async fn send_pester_message(&self, task_id: Uuid) {
+    pub async fn send_pester_message(&self, task_id: Uuid, guild_id: i64) {
         let task = Task::get(&self.db_client, task_id)
             .await
             .map_err(|e| error!("{:?}", e))
@@ -329,7 +329,7 @@ impl Bot {
             .await
             .map_err(|e| error!("{:?}", e));
 
-        let guild = Guild::get(&self.db_client, self.env.discord_guild as i64)
+        let guild = Guild::get(&self.db_client, guild_id)
             .await
             .map_err(|e| error!("{:?}", e))
             .ok()

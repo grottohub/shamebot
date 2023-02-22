@@ -5,6 +5,7 @@ use utils::logging;
 #[macro_use]
 extern crate rocket;
 
+mod environment;
 mod routes;
 
 #[launch]
@@ -16,9 +17,11 @@ async fn rocket() -> _ {
     ]);
     let db_client = Client::new().await;
     let discord_bot = Bot::new().await;
+    let env = environment::Env::new();
     rocket::build()
         .manage(db_client)
         .manage(discord_bot)
+        .manage(env)
         .mount("/", routes![routes::health])
         .mount(
             "/guild",
@@ -74,6 +77,8 @@ async fn rocket() -> _ {
             routes![
                 routes::discord::get_guild_members,
                 routes::discord::get_guild_channels,
+                routes::discord::authorize,
+                routes::discord::refresh_token,
             ],
         )
         .register("/", rocket::catchers![routes::not_found])

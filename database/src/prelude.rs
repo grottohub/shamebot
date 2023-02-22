@@ -739,3 +739,187 @@ pub enum DatabaseError {
     #[error("unknown error occurred")]
     DBGenericError(),
 }
+
+// Auth related tables
+
+#[derive(Serialize, Deserialize)]
+pub struct Token {
+    pub id: Uuid,
+    pub access_token: String,
+    pub token_type: String,
+    pub expires_at: i64,
+    pub refresh_token: String,
+    pub scope: String,
+}
+
+impl Token {
+    pub async fn new(db_client: &Client, token: Token) -> Result<Self, DatabaseError> {
+        let result = Token::insert(
+            db_client,
+            token.access_token,
+            token.token_type,
+            token.expires_at,
+            token.refresh_token,
+            token.scope,
+        )
+        .await?;
+
+        Ok(result.into())
+    }
+
+    pub async fn get(db_client: &Client, id: Uuid) -> Result<Option<Self>, DatabaseError> {
+        let query = "SELECT * FROM tokens WHERE id = $1";
+        let result = db_client.query_opt(query, &[&id]).await?;
+
+        if let Some(row) = result {
+            Ok(Some(row.into()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn refresh(
+        db_client: &Client,
+        token: Token,
+    ) -> Result<Option<Self>, DatabaseError> {
+        let query = "UPDATE tokens
+            SET
+                access_token = $1,
+                token_type = $2,
+                expires_at = $3,
+                refresh_token = $4,
+                scope = $5
+            WHERE
+                id = $6";
+        db_client
+            .query_opt(
+                query,
+                &[
+                    &token.access_token,
+                    &token.token_type,
+                    &token.expires_at,
+                    &token.refresh_token,
+                    &token.scope,
+                    &token.id,
+                ],
+            )
+            .await?;
+
+        Ok(Token::get(db_client, token.id).await?)
+    }
+
+    async fn insert(
+        db_client: &Client,
+        access_token: String,
+        token_type: String,
+        expires_at: i64,
+        refresh_token: String,
+        scope: String,
+    ) -> Result<Row, DatabaseError> {
+        let query = "INSERT INTO
+            tokens (access_token, token_type, expires_at, refresh_token, scope)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING *";
+        db_client
+            .query_one(
+                query,
+                &[
+                    &access_token,
+                    &token_type,
+                    &expires_at,
+                    &refresh_token,
+                    &scope,
+                ],
+            )
+            .await
+    }
+}
+
+impl From<Row> for Token {
+    fn from(value: Row) -> Self {
+        Token {
+            id: value.get("id"),
+            access_token: value.get("access_token"),
+            token_type: value.get("token_type"),
+            expires_at: value.get("expires_at"),
+            refresh_token: value.get("refresh_token"),
+            scope: value.get("scope"),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ApiKey {
+    pub user_id: i64,
+    pub discord_token: Uuid,
+    pub key: Uuid,
+}
+
+impl ApiKey {
+    pub async fn new(
+        db_client: &Client,
+        user_id: i64,
+        discord_token: Uuid,
+    ) -> Result<Self, DatabaseError> {
+        let result = ApiKey::insert(db_client, user_id, discord_token).await?;
+
+        Ok(result.into())
+    }
+
+    pub async fn get(db_client: &Client, key: Uuid) -> Result<Option<ApiKey>, DatabaseError> {
+        let query = "SELECT * FROM api_keys WHERE key = $1";
+        let result = db_client.query_opt(query, &[&key]).await?;
+
+        if let Some(row) = result {
+            Ok(Some(row.into()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn get_all(db_client: &Client) -> Result<Vec<Uuid>, DatabaseError> {
+        let query = "SELECT key FROM api_keys";
+        let result = db_client.query(query, &[]).await?;
+
+        let mut keys: Vec<Uuid> = Vec::new();
+
+        for row in result {
+            keys.push(row.get("key"));
+        }
+
+        Ok(keys)
+    }
+
+    pub async fn is_valid(db_client: &Client, key: Uuid) -> Result<bool, DatabaseError> {
+        let keys = ApiKey::get_all(db_client).await;
+
+        match keys {
+            Ok(keys) => Ok(keys.contains(&key)),
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn insert(
+        db_client: &Client,
+        user_id: i64,
+        discord_token: Uuid,
+    ) -> Result<Row, DatabaseError> {
+        let query = "INSERT INTO
+            api_keys (user_id, discord_token)
+            VALUES ($1, $2)
+            RETURNING *";
+        db_client
+            .query_one(query, &[&user_id, &discord_token])
+            .await
+    }
+}
+
+impl From<Row> for ApiKey {
+    fn from(value: Row) -> Self {
+        ApiKey {
+            user_id: value.get("user_id"),
+            discord_token: value.get("discord_token"),
+            key: value.get("key"),
+        }
+    }
+}

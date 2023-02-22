@@ -40,6 +40,22 @@ CREATE TABLE IF NOT EXISTS user_guild (
     CONSTRAINT user_guild_pkey PRIMARY KEY (user_id, guild_id)
 );
 
+CREATE TABLE IF NOT EXISTS tokens (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid (),
+    access_token    TEXT,
+    token_type      TEXT DEFAULT 'Bearer',
+    expires_at      BIGINT,
+    refresh_token   TEXT,
+    scope           TEXT
+);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+    user_id         BIGINT REFERENCES users (id) ON DELETE CASCADE,
+    discord_token   UUID REFERENCES tokens (id) ON DELETE CASCADE,
+    key             UUID DEFAULT gen_random_uuid (),
+    CONSTRAINT api_key_pkey PRIMARY KEY (user_id, discord_token)
+);
+
 -- user can upload proof that they've completed the task,
 -- typically to be used in conjuction w/ an accountability
 -- partner
@@ -60,6 +76,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     list_id         uuid REFERENCES lists (id) ON DELETE CASCADE,
     user_id         BIGINT REFERENCES users (id) ON DELETE CASCADE,
+    guild_id        BIGINT REFERENCES guilds (id) ON DELETE CASCADE,
     title           VARCHAR(80) NOT NULL,
     content         TEXT,
     checked         BOOLEAN DEFAULT false,

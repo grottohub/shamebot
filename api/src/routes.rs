@@ -1,9 +1,13 @@
 use std::fmt::Display;
+use std::str::FromStr;
 
-use database::prelude::Client;
+use database::prelude::{ApiKey, Client};
 use log::error;
-use rocket::serde::Serialize;
+use rocket::request::{FromRequest, Outcome};
+use rocket::serde::{Deserialize, Serialize};
+use rocket::Request;
 use rocket::{http::Status, State};
+use uuid::Uuid;
 
 #[get("/health")]
 pub async fn health(db_client: &State<Client>) -> Status {
@@ -66,6 +70,52 @@ where
                     error: Some(GenericError {
                         message: format!("{}", e),
                     }),
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ApiKeyError {
+    Missing,
+    Invalid,
+    DbError,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(crate = "rocket::serde")]
+pub struct ShamebotApiKey {
+    api_key: ApiKey,
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for ShamebotApiKey {
+    type Error = ApiKeyError;
+
+    async fn from_request(req: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let db_client = req.guard::<&State<Client>>().await.succeeded().unwrap();
+
+        match req.headers().get_one("x-api-key") {
+            None => Outcome::Failure((Status::BadRequest, ApiKeyError::Missing)),
+            Some(key) => {
+                let valid = ApiKey::is_valid(db_client, Uuid::from_str(key).unwrap()).await;
+
+                match valid {
+                    Ok(v) => {
+                        if v {
+                            let api_key = ApiKey::get(db_client, Uuid::from_str(key).unwrap())
+                                .await
+                                .ok()
+                                .unwrap();
+                            Outcome::Success(ShamebotApiKey {
+                                api_key: api_key.unwrap(),
+                            })
+                        } else {
+                            Outcome::Failure((Status::Forbidden, ApiKeyError::Invalid))
+                        }
+                    }
+                    Err(_) => Outcome::Failure((Status::InternalServerError, ApiKeyError::DbError)),
                 }
             }
         }
@@ -316,6 +366,7 @@ pub mod list {
                 db_client,
                 task.list_id,
                 task.user_id,
+                task.guild_id,
                 task.title.clone(),
                 task.content.clone(),
                 task.pester,
@@ -518,11 +569,61 @@ pub mod accountability {
 }
 
 pub mod discord {
-    use discord::bot::{Bot, Member, GuildChannel};
+    use chrono::Utc;
+    use database::prelude::{ApiKey, Client, Token, User};
+    use discord::bot::{Bot, GuildChannel, Member, User as DiscordUser};
+    use log::{error, info};
     use rocket::serde::json::Json;
+    use rocket::serde::{Deserialize, Serialize};
     use rocket::{http::Status, State};
+    use uuid::Uuid;
 
+    use crate::environment;
     use crate::routes::GenericResponse;
+
+    use super::ShamebotApiKey;
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(crate = "rocket::serde")]
+    struct TokenRequest {
+        client_id: u64,
+        client_secret: String,
+        grant_type: String,
+        code: String,
+        redirect_uri: String,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(crate = "rocket::serde")]
+    struct TokenResponse {
+        access_token: String,
+        token_type: String,
+        expires_in: i64,
+        refresh_token: String,
+        scope: String,
+    }
+
+    impl Into<Token> for TokenResponse {
+        fn into(self) -> Token {
+            Token {
+                id: Uuid::default(),
+                access_token: self.access_token,
+                token_type: self.token_type,
+                expires_at: Utc::now().timestamp() + self.expires_in,
+                refresh_token: self.refresh_token,
+                scope: self.scope,
+            }
+        }
+    }
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(crate = "rocket::serde")]
+    struct RefreshRequest {
+        client_id: u64,
+        client_secret: String,
+        grant_type: String,
+        refresh_token: String,
+    }
 
     #[get("/guild/<id>/members")]
     pub async fn get_guild_members(
@@ -544,5 +645,138 @@ pub mod discord {
         let resp = GenericResponse::from(text_channels);
 
         (Status::from_code(resp.status).unwrap(), Json(resp))
+    }
+
+    #[get("/authorize?<code>")]
+    pub async fn authorize(
+        db_client: &State<Client>,
+        env: &State<environment::Env>,
+        code: String,
+    ) -> Json<Option<User>> {
+        let req = TokenRequest {
+            client_id: env.client_id,
+            client_secret: env.client_secret.clone(),
+            code,
+            grant_type: String::from("authorization_code"),
+            redirect_uri: env.redirect_uri.clone(),
+        };
+
+        let client = reqwest::Client::new();
+        let endpoint = "https://discord.com/api/oauth2/token";
+
+        let resp = client
+            .post(endpoint)
+            .form(&req)
+            .send()
+            .await
+            .map_err(|e| error!("{}", e));
+
+        if let Ok(resp) = resp {
+            let token = resp
+                .json::<TokenResponse>()
+                .await
+                .map_err(|e| error!("{}", e))
+                .unwrap();
+
+            let persisted = Token::new(db_client, token.into())
+                .await
+                .map_err(|e| error!("{}", e))
+                .unwrap();
+
+            let user_resp = client
+                .get("https://discord.com/api/users/@me")
+                .bearer_auth(persisted.access_token.clone())
+                .send()
+                .await
+                .map_err(|e| error!("{}", e))
+                .unwrap();
+
+            info!("{:?}", user_resp);
+
+            let user = user_resp
+                .json::<DiscordUser>()
+                .await
+                .map_err(|e| error!("{}", e))
+                .unwrap();
+
+            info!("{:?}", user);
+
+            let new_user = User::new(
+                db_client,
+                *user.id.as_u64() as i64,
+                user.name,
+                user.discriminator.to_string(),
+                user.avatar.unwrap_or_default(),
+            )
+            .await
+            .map_err(|e| error!("{}", e))
+            .unwrap();
+
+            ApiKey::new(db_client, new_user.id, persisted.id)
+                .await
+                .map_err(|e| error!("{}", e))
+                .unwrap();
+
+            return Json(Some(new_user));
+        }
+
+        Json(None)
+    }
+
+    #[post("/refresh")]
+    pub async fn refresh_token(
+        db_client: &State<Client>,
+        env: &State<environment::Env>,
+        key: ShamebotApiKey,
+    ) -> Status {
+        let token = Token::get(db_client, key.api_key.discord_token)
+            .await
+            .map_err(|e| error!("{}", e));
+
+        if let Some(token) = token.unwrap() {
+            let refresh_req = RefreshRequest {
+                client_id: env.client_id,
+                client_secret: env.client_secret.clone(),
+                grant_type: String::from("refresh_token"),
+                refresh_token: token.refresh_token,
+            };
+
+            let client = reqwest::Client::new();
+            let endpoint = "https://discord.com/api/oauth2/token";
+
+            let resp = client
+                .post(endpoint)
+                .form(&refresh_req)
+                .send()
+                .await
+                .map_err(|e| error!("{}", e));
+
+            if let Ok(resp) = resp {
+                let new_token = resp
+                    .json::<TokenResponse>()
+                    .await
+                    .map_err(|e| error!("{}", e))
+                    .unwrap();
+
+                let updated_token = Token {
+                    id: token.id,
+                    access_token: new_token.access_token,
+                    token_type: token.token_type,
+                    expires_at: Utc::now().timestamp() + new_token.expires_in,
+                    refresh_token: new_token.refresh_token,
+                    scope: new_token.scope,
+                };
+
+                let refreshed = Token::refresh(db_client, updated_token)
+                    .await
+                    .map_err(|e| error!("{}", e));
+
+                if let Ok(_) = refreshed {
+                    return Status::Ok;
+                }
+            }
+        }
+
+        Status::InternalServerError
     }
 }

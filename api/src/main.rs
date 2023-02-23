@@ -1,5 +1,6 @@
 use database::prelude::Client;
 use discord::bot::Bot;
+use rocket::{fairing::{Fairing, Info, Kind}, Request, Response, http::Header};
 use utils::logging;
 
 #[macro_use]
@@ -7,6 +8,25 @@ extern crate rocket;
 
 mod environment;
 mod routes;
+
+pub struct CORS;
+
+#[rocket::async_trait]
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to responses",
+            kind: Kind::Response
+        }
+    }
+
+    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Methods", "POST, PUT, DELETE, GET, PATCH, OPTIONS"));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+    }
+}
 
 #[launch]
 async fn rocket() -> _ {
@@ -22,6 +42,7 @@ async fn rocket() -> _ {
         .manage(db_client)
         .manage(discord_bot)
         .manage(env)
+        .attach(CORS)
         .mount("/", routes![routes::health])
         .mount(
             "/guild",
